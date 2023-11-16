@@ -6,13 +6,15 @@ import { UsersModule } from './users/users.module'
 import { SocketModule } from './socket/socket.module'
 import { ChannelsModule } from './channels/channels.module'
 import { ServersModule } from './server/server.module'
+import { ConfigModule } from '@nestjs/config'
 
 @Module({
   imports: [
-    MongooseModule.forRoot('mongodb+srv://cluster0.679kcfi.mongodb.net', {
-      user: 'hoangvule100',
-      pass: 'pc1264183vT.',
-      dbName: 'discord-clone',
+    ConfigModule.forRoot(),
+    MongooseModule.forRoot(process.env.DATABASE_CONNECTION_STRING, {
+      user: process.env.DATABASE_USER,
+      pass: process.env.DATABASE_PASSWORD,
+      dbName: process.env.DATABASE_NAME,
     }),
     UsersModule,
     ChannelsModule,
