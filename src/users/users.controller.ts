@@ -6,6 +6,7 @@ import CreateUserDTO from '../dtos/create-user.dto'
 import { tokenConfig } from '../config/token.config'
 import { TokenVerifyGuard } from '../auth/tokenVerify.guard'
 import { ObjectId } from 'mongoose'
+import CreateAttachmentDTO from 'src/dtos/create-attachment.dto'
 
 @Controller('users')
 export class UsersController {
@@ -86,7 +87,7 @@ export class UsersController {
   }
 
   @Post('send-message')
-  async sendMessage(@Body() body: { message: string; channelId: ObjectId; userId: ObjectId }, @Res() res: Response) {
+  async sendMessage(@Body() body: { message: string; channelId: ObjectId; userId: ObjectId; attachmentIds: ObjectId[] }, @Res() res: Response) {
     const response = await this.service.sendMessage(body)
     return res.json(response)
   }

@@ -7,6 +7,7 @@ import { SocketModule } from './socket/socket.module'
 import { ChannelsModule } from './channels/channels.module'
 import { ServersModule } from './server/server.module'
 import { ConfigModule } from '@nestjs/config'
+import { AttachmentModule } from './attachment/attachment.module'
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ConfigModule } from '@nestjs/config'
     ChannelsModule,
     ServersModule,
     SocketModule,
+    AttachmentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

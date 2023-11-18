@@ -7,6 +7,9 @@ import CreateUserDTO from '../dtos/create-user.dto'
 import { UserServer } from 'src/schemas/user-server.schema'
 import { MessageHistory } from 'src/schemas/message-history.schema'
 import { Server } from 'src/schemas/server.schema'
+import CreateAttachmentDTO from 'src/dtos/create-attachment.dto'
+import { Attachment } from 'src/schemas/attachment.schema'
+import { MessageAttachment } from 'src/schemas/message-attachment'
 
 @Injectable()
 export class UsersService {
@@ -14,7 +17,9 @@ export class UsersService {
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(UserServer.name) private userServerModel: Model<UserServer>,
     @InjectModel(Server.name) private serverModel: Model<Server>,
-    @InjectModel(MessageHistory.name) private messageHistoryModel: Model<MessageHistory>
+    @InjectModel(MessageHistory.name) private messageHistoryModel: Model<MessageHistory>,
+    @InjectModel(Attachment.name) private attachmentModel: Model<Attachment>,
+    @InjectModel(MessageAttachment.name) private messageAttachmentModel: Model<MessageAttachment>
   ) {}
 
   async create(userDTO: CreateUserDTO): Promise<User> {
@@ -142,10 +147,20 @@ export class UsersService {
     return response
   }
 
-  async sendMessage(data: { message: string; channelId: ObjectId; userId: ObjectId }): Promise<MessageHistory> {
-    const { channelId, message, userId } = data
+  async sendMessage(data: { message: string; channelId: ObjectId; userId: ObjectId; attachmentIds: ObjectId[] }): Promise<MessageHistory> {
+    const { channelId, message, userId, attachmentIds } = data
     const messageHistoryModel = new this.messageHistoryModel({ channelId, message, userId })
     const response = await messageHistoryModel.save()
+    if (attachmentIds && attachmentIds.length > 0) {
+      const setAllAttachments = attachmentIds.map(async (attachmentId) => {
+        const messageAttachmentModel = new this.messageAttachmentModel({
+          attachmentId: attachmentId,
+          messageId: response._id,
+        })
+        await messageAttachmentModel.save()
+      })
+      await Promise.all(setAllAttachments)
+    }
     return response
   }
 

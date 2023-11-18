@@ -3,6 +3,7 @@ import mongoose, { HydratedDocument, ObjectId } from 'mongoose'
 import { Transform, Type } from 'class-transformer'
 import { User } from './user.schema'
 import { Channel } from './channel.schema'
+import { Attachment } from './attachment.schema'
 
 export type MessageHistoryDocument = HydratedDocument<MessageHistory>
 @Schema({ toJSON: { virtuals: true }, timestamps: true })
@@ -29,4 +30,11 @@ MessageHistorySchema.virtual('userDetails', {
   localField: 'userId',
   foreignField: '_id',
   justOne: true,
+})
+
+MessageHistorySchema.virtual('attachments', {
+  ref: Attachment.name,
+  localField: '_id',
+  foreignField: 'messageId',
+  justOne: false,
 })

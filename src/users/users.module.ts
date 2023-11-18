@@ -7,6 +7,8 @@ import { JwtModule } from '@nestjs/jwt'
 import { UserServer, UserServerSchema } from 'src/schemas/user-server.schema'
 import { MessageHistory, MessageHistorySchema } from 'src/schemas/message-history.schema'
 import { Server, ServerSchema } from 'src/schemas/server.schema'
+import { Attachment, AttachmentSchema } from 'src/schemas/attachment.schema'
+import { MessageAttachment, MessageAttachmentSchema } from 'src/schemas/message-attachment'
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { Server, ServerSchema } from 'src/schemas/server.schema'
       { name: UserServer.name, schema: UserServerSchema },
       { name: MessageHistory.name, schema: MessageHistorySchema },
       { name: Server.name, schema: ServerSchema },
+      { name: Attachment.name, schema: AttachmentSchema },
+      { name: MessageAttachment.name, schema: MessageAttachmentSchema },
     ]),
     JwtModule.register({}),
   ],
