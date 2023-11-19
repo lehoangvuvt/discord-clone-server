@@ -17,7 +17,7 @@ export class ChannelsController {
   }
 
   @Get('message-history/:channelId')
-  async getMessageHistory(@Param() param: { channelId: ObjectId }, @Res() res: Response) {
+  async getMessageHistory(@Param() param: { channelId: string }, @Res() res: Response) {
     const response = await this.service.getChannelMessageHistory(param.channelId)
     return res.status(200).json(response)
   }

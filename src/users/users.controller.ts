@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Res, UseGuards, Req } from '@nestjs/common'
+import { Controller, Get, Post, Body, Res, UseGuards, Req, Param } from '@nestjs/common'
 import { Response } from 'express'
 import { JwtService } from '@nestjs/jwt'
 import { UsersService } from './users.service'
@@ -6,7 +6,7 @@ import CreateUserDTO from '../dtos/create-user.dto'
 import { tokenConfig } from '../config/token.config'
 import { TokenVerifyGuard } from '../auth/tokenVerify.guard'
 import { ObjectId } from 'mongoose'
-import CreateAttachmentDTO from 'src/dtos/create-attachment.dto'
+import UploadFileDTO from 'src/dtos/upload-file.dto'
 
 @Controller('users')
 export class UsersController {
@@ -65,12 +65,14 @@ export class UsersController {
       })
     }
   }
+
   @Get('refresh-token')
   async getAccessTokenFromAccessToken() {}
+  
   @Get('test-guard')
   @UseGuards(TokenVerifyGuard)
   async testGuard(@Req() req: any) {
-    console.log(req.username)
+    console.log(req._id)
     return ''
   }
 
@@ -87,7 +89,7 @@ export class UsersController {
   }
 
   @Post('send-message')
-  async sendMessage(@Body() body: { message: string; channelId: ObjectId; userId: ObjectId; attachmentIds: ObjectId[] }, @Res() res: Response) {
+  async sendMessage(@Body() body: { message: string; channelId: ObjectId; userId: ObjectId; fileIds: string[] }, @Res() res: Response) {
     const response = await this.service.sendMessage(body)
     return res.json(response)
   }
@@ -96,5 +98,21 @@ export class UsersController {
   async getUsersByIds(@Body() body: ObjectId[], @Res() res: Response) {
     const response = await this.service.getUsersByIds(body)
     return res.status(200).json(response)
+  }
+
+  @Post('find')
+  async findUsers(@Body() body: { keyword: string }, @Res() res: Response) {
+    const result = await this.service.findUsers(body.keyword)
+    return res.status(200).json(result)
+  }
+
+  @Post('upload-avatar')
+  async upload(@Body() uploadFileDTO: UploadFileDTO, @Res() res: Response) {
+    const response = await this.service.uploadFile(uploadFileDTO)
+    if (response) {
+      return res.status(200).json(response)
+    } else {
+      return res.status(401).send({ error: 'Error at upload file: ' + uploadFileDTO.name })
+    }
   }
 }

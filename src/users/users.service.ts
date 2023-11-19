@@ -1,4 +1,4 @@
-import { Model, ObjectId } from 'mongoose'
+import mongoose, { Model, ObjectId } from 'mongoose'
 import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { User } from '../schemas/user.schema'
@@ -10,6 +10,8 @@ import { Server } from 'src/schemas/server.schema'
 import CreateAttachmentDTO from 'src/dtos/create-attachment.dto'
 import { Attachment } from 'src/schemas/attachment.schema'
 import { MessageAttachment } from 'src/schemas/message-attachment'
+import UploadFileDTO from 'src/dtos/upload-file.dto'
+import { writeFile } from 'mz/fs'
 
 @Injectable()
 export class UsersService {
@@ -138,32 +140,6 @@ export class UsersService {
     return result
   }
 
-  async joinServer(userId: ObjectId, serverId: ObjectId): Promise<UserServer> {
-    const userServerModel = new this.userServerModel({
-      serverId,
-      userId,
-    })
-    const response = await userServerModel.save()
-    return response
-  }
-
-  async sendMessage(data: { message: string; channelId: ObjectId; userId: ObjectId; attachmentIds: ObjectId[] }): Promise<MessageHistory> {
-    const { channelId, message, userId, attachmentIds } = data
-    const messageHistoryModel = new this.messageHistoryModel({ channelId, message, userId })
-    const response = await messageHistoryModel.save()
-    if (attachmentIds && attachmentIds.length > 0) {
-      const setAllAttachments = attachmentIds.map(async (attachmentId) => {
-        const messageAttachmentModel = new this.messageAttachmentModel({
-          attachmentId: attachmentId,
-          messageId: response._id,
-        })
-        await messageAttachmentModel.save()
-      })
-      await Promise.all(setAllAttachments)
-    }
-    return response
-  }
-
   async getUsersByIds(userIds: ObjectId[]): Promise<User[]> {
     const result = await this.userModel
       .find({
@@ -173,5 +149,93 @@ export class UsersService {
       })
       .lean()
     return result
+  }
+
+  async findUsers(keyword: string): Promise<User[]> {
+    if (keyword.trim().length == 0) return []
+    const result = await this.userModel.aggregate([
+      {
+        $match: {
+          $or: [
+            {
+              username: {
+                $regex: keyword,
+                $options: 'i',
+              },
+            },
+            {
+              name: {
+                $regex: keyword,
+                $options: 'i',
+              },
+            },
+          ],
+        },
+      },
+    ])
+    return result
+  }
+
+  async joinServer(userId: ObjectId, serverId: ObjectId): Promise<UserServer> {
+    const userServerModel = new this.userServerModel({
+      serverId,
+      userId,
+    })
+    const response = await userServerModel.save()
+    return response
+  }
+
+  async sendMessage(data: { message: string; channelId: ObjectId; userId: ObjectId; fileIds: string[] }): Promise<MessageHistory> {
+    const { channelId, message, userId, fileIds } = data
+    const messageHistoryModel = new this.messageHistoryModel({ channelId, message, userId })
+    const response = await messageHistoryModel.save()
+    if (fileIds && fileIds.length > 0) {
+      const createAttachments = fileIds.map(async (fileId) => {
+        const attachmentModel = new this.attachmentModel({
+          fileId: new mongoose.Types.ObjectId(fileId),
+        })
+        const result = await attachmentModel.save()
+        if (result) {
+          const messageAttachmentModel = new this.messageAttachmentModel({
+            attachmentId: result._id,
+            messageId: response._id,
+          })
+          await messageAttachmentModel.save()
+        }
+      })
+
+      await Promise.all(createAttachments)
+    }
+    return response
+  }
+
+  async uploadFile(uploadFileDTO: UploadFileDTO) {
+    const { name, type, base64 } = uploadFileDTO
+    const base64Data = base64.replace(type, '')
+    const path = 'uploaded-files'
+    let subPath = ''
+    if (type.includes('image')) {
+      subPath = 'images'
+    } else if (type.includes('audio')) {
+      subPath = 'audio'
+    } else if (type.includes('video')) {
+      subPath = 'videos'
+    } else {
+      subPath = 'others'
+    }
+    try {
+      await writeFile(`${path}/${subPath}/${name}`, base64Data, 'base64')
+      console.log(`${path}/${subPath}/${name}`)
+      const attachmentModel = new this.attachmentModel({
+        name,
+        type,
+        path: `${subPath}/${name}`,
+      })
+      const result = await attachmentModel.save()
+      return result
+    } catch (error) {
+      console.log('Error at upload file: ' + error)
+      return null
+    }
   }
 }

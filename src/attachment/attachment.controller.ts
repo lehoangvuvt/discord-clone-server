@@ -3,13 +3,12 @@ import { Response } from 'express'
 import { JwtService } from '@nestjs/jwt'
 import { AttachmentService } from './attachment.service'
 import CreateAttachmentDTO from 'src/dtos/create-attachment.dto'
-import { ObjectId } from 'mongoose'
 
 @Controller('attachments')
 export class AttachmentController {
   constructor(private readonly service: AttachmentService, private jwtService: JwtService) {}
 
-  @Post('upload')
+  @Post('create')
   async upload(@Body() createAttachmentDTO: CreateAttachmentDTO, @Res() res: Response) {
     const response = await this.service.createAttachment(createAttachmentDTO)
     if (response) {
@@ -20,7 +19,7 @@ export class AttachmentController {
   }
 
   @Get(':attachmentId')
-  async getAll(@Param() param: { attachmentId: ObjectId }, @Res() res: Response) {
+  async getAll(@Param() param: { attachmentId: string }, @Res() res: Response) {
     const response = await this.service.getAttachment(param.attachmentId)
     if (response) {
       return res.status(200).json(response)

@@ -1,4 +1,4 @@
-import { Model, ObjectId } from 'mongoose'
+import mongoose, { Model, ObjectId } from 'mongoose'
 import { Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import CreateAttachmentDTO from 'src/dtos/create-attachment.dto'
@@ -9,11 +9,9 @@ export class AttachmentService {
   constructor(@InjectModel(Attachment.name) private attachmentModel: Model<Attachment>) {}
 
   async createAttachment(createAttachmentDTO: CreateAttachmentDTO): Promise<Attachment> {
-    const { buffer, name, type } = createAttachmentDTO
+    const { fileId } = createAttachmentDTO
     const attachmentModel = new this.attachmentModel({
-      buffer,
-      name,
-      type,
+      fileId: new mongoose.Types.ObjectId(fileId),
     })
     const result = await attachmentModel.save()
     return result
@@ -24,8 +22,13 @@ export class AttachmentService {
     return result
   }
 
-  async getAttachment(_id: ObjectId): Promise<Attachment> {
-    const result = await this.attachmentModel.findOne({ _id }).lean()
-    return result
+  async getAttachment(_id: string): Promise<Attachment> {
+    const objectId = new mongoose.Types.ObjectId(_id)
+    const result = await this.attachmentModel.find({ _id: objectId }).populate('fileDetails').lean()
+    if (result?.length > 0) {
+      return result[0]
+    } else {
+      return null
+    }
   }
 }

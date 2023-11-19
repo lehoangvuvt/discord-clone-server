@@ -94,16 +94,13 @@ export class MessageGateway {
 
   @SubscribeMessage('send')
   async handleSendMessage(client: Socket, data: string) {
-    const clientData: { channelId: ObjectId; userId: ObjectId; message: string; attachmentIds: ObjectId[] } = JSON.parse(data)
+    const clientData: { channelId: ObjectId; userId: ObjectId; message: string; fileIds: string[] } = JSON.parse(data)
     await this.usersService.sendMessage({
       channelId: clientData.channelId,
       message: clientData.message,
       userId: clientData.userId,
-      attachmentIds: clientData.attachmentIds,
+      fileIds: clientData.fileIds,
     })
     this.server.emit(`receiveMessageChannel=${clientData.channelId}`)
   }
-
-  @SubscribeMessage('send')
-  async sendMessage(client: Socket, data: string) {}
 }
