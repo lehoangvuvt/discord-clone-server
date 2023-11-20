@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose'
 import { writeFile } from 'mz/fs'
 import { UploadedFile } from 'src/schemas/uploaded-file'
 import UploadFileDTO from 'src/dtos/upload-file.dto'
+import { join } from 'path'
 
 @Injectable()
 export class UploadedFilesService {
@@ -12,8 +13,8 @@ export class UploadedFilesService {
   async uploadFile(uploadFileDTO: UploadFileDTO): Promise<UploadedFile> {
     const { name, type, base64, section } = uploadFileDTO
     const base64Data = base64.replace(type, '')
-    const path = 'uploaded-files'
-
+    // const path = join(__dirname, '../..', 'public/uploaded-files')
+    const path = "src/uploaded-files"
     let subPath = ''
     if (type.includes('image')) {
       subPath = 'images'

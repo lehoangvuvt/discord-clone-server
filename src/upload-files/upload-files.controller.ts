@@ -31,7 +31,7 @@ export class UploadedFilesController {
 
   @Get(':type/:section/:fileName')
   async getFile(@Param() param: { type: string; fileName: string; section: string }, @Res() res: Response) {
-    const path = `uploaded-files/${param.type}/${param.section}/${param.fileName}`
+    const path = `src/uploaded-files/${param.type}/${param.section}/${param.fileName}`
     const stat = statSync(path)
     const readStream = createReadStream(path)
     let fileNameExtension = ''
