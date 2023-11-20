@@ -5,6 +5,7 @@ import { writeFile } from 'mz/fs'
 import { UploadedFile } from 'src/schemas/uploaded-file'
 import UploadFileDTO from 'src/dtos/upload-file.dto'
 import { join } from 'path'
+import { v2 as cloudinary } from 'cloudinary'
 
 @Injectable()
 export class UploadedFilesService {
@@ -13,8 +14,7 @@ export class UploadedFilesService {
   async uploadFile(uploadFileDTO: UploadFileDTO): Promise<UploadedFile> {
     const { name, type, base64, section } = uploadFileDTO
     const base64Data = base64.replace(type, '')
-    // const path = join(__dirname, '../..', 'public/uploaded-files')
-    const path = "src/uploaded-files"
+    const path = join(__dirname, '../..', 'public/uploaded-files')
     let subPath = ''
     if (type.includes('image')) {
       subPath = 'images'
@@ -54,6 +54,45 @@ export class UploadedFilesService {
     if (result) {
       return result
     } else {
+      return null
+    }
+  }
+
+  async uploadToCloudinary(uploadFileDTO: UploadFileDTO): Promise<UploadedFile> {
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_NAME,
+      api_key: process.env.CLOUDINARY_KEY,
+      api_secret: process.env.CLOUDINARY_SECRET,
+    })
+    const { base64, name, section, type } = uploadFileDTO
+    const formattedName = name.replace(' ', '_').split('.')[0]
+    let resourceType: 'image' | 'video' | 'auto' | 'raw' = 'raw'
+    let subPath = ''
+    if (type.includes('image')) {
+      subPath = 'images'
+      resourceType = 'image'
+    } else if (type.includes('audio')) {
+      subPath = 'audio'
+      resourceType = 'video'
+    } else if (type.includes('video')) {
+      subPath = 'videos'
+      resourceType = 'video'
+    } else {
+      subPath = 'others'
+      resourceType = 'raw'
+    }
+    subPath += `/${section}`
+    try {
+      const responseUpload = await cloudinary.uploader.upload(base64, { public_id: formattedName, folder: subPath, resource_type: resourceType })
+      const attachmentModel = new this.uploadedFileModel({
+        name,
+        type,
+        section,
+        path: responseUpload.secure_url,
+      })
+      const result = await attachmentModel.save()
+      return result
+    } catch (error) {
       return null
     }
   }

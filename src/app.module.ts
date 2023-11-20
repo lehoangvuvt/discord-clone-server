@@ -14,9 +14,9 @@ import { join } from 'path'
 
 @Module({
   imports: [
-    // ServeStaticModule.forRoot({
-    //   rootPath: join(__dirname, '..', 'public/uploaded-files'),
-    // }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public/uploaded-files'),
+    }),
     ConfigModule.forRoot(),
     MongooseModule.forRoot(process.env.DATABASE_CONNECTION_STRING, {
       user: process.env.DATABASE_USER,
