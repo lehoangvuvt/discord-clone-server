@@ -29,35 +29,35 @@ export class UploadedFilesController {
     }
   }
 
-  // @Get(':type/:section/:fileName')
-  // async getFile(@Param() param: { type: string; fileName: string; section: string }, @Res() res: Response) {
-  //   const path = `uploaded-files/${param.type}/${param.section}/${param.fileName}`
-  //   const stat = statSync(path)
-  //   const readStream = createReadStream(path)
-  //   let fileNameExtension = ''
-  //   switch (param.fileName.split('.')[1]) {
-  //     case 'mp3':
-  //       fileNameExtension = 'mpeg'
-  //       break
-  //     case 'jpg':
-  //       fileNameExtension = 'jpeg'
-  //     default:
-  //       fileNameExtension = param.fileName.split('.')[1]
-  //   }
-  //   const fileType = param.type === 'images' ? 'image' : param.type
-  //   const contentType = fileType + '/' + fileNameExtension
-  //   res.writeHead(200, {
-  //     'Content-Type': contentType,
-  //     'Content-Length': stat.size,
-  //     'Accept-Ranges': 'bytes',
-  //     'Content-Disposition': 'attachment; filename=' + param.fileName,
-  //   })
-  //   readStream.on('open', function () {
-  //     readStream.pipe(res)
-  //   })
+  @Get(':type/:section/:fileName')
+  async getFile(@Param() param: { type: string; fileName: string; section: string }, @Res() res: Response) {
+    const path = `uploaded-files/${param.type}/${param.section}/${param.fileName}`
+    const stat = statSync(path)
+    const readStream = createReadStream(path)
+    let fileNameExtension = ''
+    switch (param.fileName.split('.')[1]) {
+      case 'mp3':
+        fileNameExtension = 'mpeg'
+        break
+      case 'jpg':
+        fileNameExtension = 'jpeg'
+      default:
+        fileNameExtension = param.fileName.split('.')[1]
+    }
+    const fileType = param.type === 'images' ? 'image' : param.type
+    const contentType = fileType + '/' + fileNameExtension
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': stat.size,
+      'Accept-Ranges': 'bytes',
+      'Content-Disposition': 'attachment; filename=' + param.fileName,
+    })
+    readStream.on('open', function () {
+      readStream.pipe(res)
+    })
 
-  //   readStream.on('error', function (err) {
-  //     res.end(err)
-  //   })
-  // }
+    readStream.on('error', function (err) {
+      res.end(err)
+    })
+  }
 }

@@ -9,14 +9,9 @@ import { ServersModule } from './server/server.module'
 import { ConfigModule } from '@nestjs/config'
 import { AttachmentModule } from './attachment/attachment.module'
 import { UploadedFilesModule } from './upload-files/upload-files.module'
-import { ServeStaticModule } from '@nestjs/serve-static'
-import { join } from 'path'
 
 @Module({
   imports: [
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'public/uploaded-files'),
-    }),
     ConfigModule.forRoot(),
     MongooseModule.forRoot(process.env.DATABASE_CONNECTION_STRING, {
       user: process.env.DATABASE_USER,
