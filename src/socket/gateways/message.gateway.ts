@@ -103,4 +103,13 @@ export class MessageGateway {
     })
     this.server.emit(`receiveMessageChannel=${clientData.channelId}`)
   }
+
+  @SubscribeMessage('sendVoice')
+  async handleSendVoice(client: Socket, data: string) {
+    const clientData: { base64: string; serverId: string; userId: string } = JSON.parse(data)
+    const newData: string[] = clientData.base64.split(';')
+    newData[0] = 'data:audio/ogg;'
+    const newDataString = newData[0] + newData[1]
+    this.server.emit(`receiveVoiceServer=${clientData.serverId}`, JSON.stringify({ base64: newDataString, senderId: clientData.userId }))
+  }
 }
