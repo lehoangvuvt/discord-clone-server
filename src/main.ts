@@ -7,7 +7,7 @@ import * as express from 'express'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
-  app.use(cors())
+  app.use(cors({ credentials: true, origin: process.env.CLIENT_HOST_URL }))
   app.use(cookieParser())
   app.use(express.json({ limit: '50mb' }))
   app.use(express.urlencoded({ limit: '50mb' }))

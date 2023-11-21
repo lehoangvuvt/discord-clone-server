@@ -68,12 +68,29 @@ export class UsersController {
 
   @Get('refresh-token')
   async getAccessTokenFromAccessToken() {}
-  
-  @Get('test-guard')
-  @UseGuards(TokenVerifyGuard)
-  async testGuard(@Req() req: any) {
-    console.log(req._id)
-    return ''
+
+  @Get('authentication')
+  async anthentication(@Req() request: any, @Res() res: Response) {
+    if (request.cookies && request.cookies['access_token']) {
+      const access_token = request.cookies['access_token']
+      try {
+        const decoded = await this.jwtService.verifyAsync(access_token, {
+          secret: tokenConfig.ACCESS_TOKEN_SECRET_KEY,
+        })
+        if (!decoded) {
+          return false
+        } else {
+          const userId = decoded._id
+          const result = await this.service.getUserByIdAuthentication(userId)
+          if (!result) return res.status(401).json({ error: 'Authentication failed' })
+          return res.status(200).json(result)
+        }
+      } catch (error) {
+        return res.status(401).json({ error: 'Authentication failed' })
+      }
+    } else {
+      return res.status(401).json({ error: 'Authentication failed' })
+    }
   }
 
   @Get('test-populate')

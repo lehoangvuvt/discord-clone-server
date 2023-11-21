@@ -140,6 +140,62 @@ export class UsersService {
     return result
   }
 
+  async getUserByIdAuthentication(userId: string): Promise<User> {
+    const foundUser: any[] = await this.userModel
+      .aggregate([
+        {
+          $match: {
+            _id: new mongoose.Types.ObjectId(userId),
+          },
+        },
+        {
+          $lookup: {
+            from: 'servers',
+            localField: '_id',
+            foreignField: 'creator',
+            as: 'createdServers',
+          },
+        },
+        {
+          $lookup: {
+            from: 'userservers',
+            localField: '_id',
+            foreignField: 'userId',
+            as: 'joinedServers',
+            pipeline: [
+              {
+                $lookup: {
+                  from: 'servers',
+                  localField: 'serverId',
+                  foreignField: '_id',
+                  as: 'details',
+                },
+              },
+            ],
+          },
+        },
+        {
+          $limit: 1,
+        },
+      ])
+      .exec()
+    if (foundUser?.length > 0) {
+      let formattedUserData = { ...foundUser[0] }
+      formattedUserData.joinedServers = formattedUserData.joinedServers.map((ele) => {
+        return {
+          _id: ele._id,
+          createdAt: ele.createdAt,
+          updatedAt: ele.updatedAt,
+          ...ele.details[0],
+        }
+      })
+      delete formattedUserData.password
+      return formattedUserData
+    } else {
+      return null
+    }
+  }
+
   async getUsersByIds(userIds: ObjectId[]): Promise<User[]> {
     const result = await this.userModel
       .find({
