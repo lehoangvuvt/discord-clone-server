@@ -34,7 +34,7 @@ export class ChannelsService {
         },
         {
           $sort: {
-            createdAt: 1,
+            createdAt: -1,
           },
         },
         {
@@ -88,6 +88,6 @@ export class ChannelsService {
         },
       ])
       .exec()
-    return result
+    return result.reverse()
   }
 }
