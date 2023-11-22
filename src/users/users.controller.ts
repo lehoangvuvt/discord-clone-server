@@ -70,11 +70,15 @@ export class UsersController {
       res.cookie('refresh_token', refreshToken, {
         httpOnly: true,
         expires: new Date(Date.now() + tokenConfig.refreshTokenExpiresIn.cookies),
+        sameSite: 'none',
+        secure: true,
       })
       const accessToken = await this.signToken('access_token', { _id: response._id })
       res.cookie('access_token', accessToken, {
         httpOnly: true,
         expires: new Date(Date.now() + tokenConfig.accessTokenExpiresIn.cookies),
+        sameSite: 'none',
+        secure: true,
       })
       return res.status(200).json({
         ...response,
@@ -98,6 +102,8 @@ export class UsersController {
       res.cookie('access_token', accessToken, {
         httpOnly: true,
         expires: new Date(Date.now() + tokenConfig.accessTokenExpiresIn.cookies),
+        sameSite: 'none',
+        secure: true,
       })
       return res.status(200).json(validateToken)
     } else {
