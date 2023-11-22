@@ -38,7 +38,6 @@ export class UsersController {
         }
       )
       res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
         expires: new Date(Date.now() + tokenConfig.refreshTokenExpiresIn.cookies),
       })
       const accessToken = await this.jwtService.signAsync(
@@ -51,7 +50,6 @@ export class UsersController {
         }
       )
       res.cookie('access_token', accessToken, {
-        httpOnly: true,
         expires: new Date(Date.now() + tokenConfig.accessTokenExpiresIn.cookies),
       })
       return res.status(200).json({
