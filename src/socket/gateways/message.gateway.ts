@@ -4,6 +4,7 @@ import { UsersService } from '../../users/users.service'
 import { JwtService } from '@nestjs/jwt'
 import { tokenConfig } from '../../config/token.config'
 import { ObjectId } from 'mongoose'
+import * as RTCMultiConnectionServer from 'rtcmulticonnection-server'
 
 type Client = {
   userId: ObjectId
@@ -24,18 +25,18 @@ export class MessageGateway {
     if (!client.handshake && client.handshake.auth && client.handshake.auth.accessToken) client.disconnect()
 
     try {
+      console.log(client.handshake.auth.accessToken)
       const decoded = await this.jwtService.verifyAsync(client.handshake.auth.accessToken, {
         secret: tokenConfig.ACCESS_TOKEN_SECRET_KEY,
       })
-      console.log(decoded)
       if (!decoded) client.disconnect()
-      console.log(decoded)
       const _id = decoded._id
       const user = await this.usersService.getUserById(_id)
       if (!user) client.disconnect()
       this.clients.set(_id, { userId: _id, clientId: client.id })
       client.send('connected', 'asda')
-    } catch {
+    } catch (err) {
+      console.log(err)
       console.log('Disconnected')
       client.disconnect()
     }
@@ -112,4 +113,7 @@ export class MessageGateway {
     const newDataString = newData[0] + newData[1]
     this.server.emit(`receiveVoiceServer=${clientData.serverId}`, JSON.stringify({ base64: newDataString, senderId: clientData.userId }))
   }
+
+  @SubscribeMessage('joinVoice')
+  handleJoinVoice(client: Socket, data: { serverId: string; offer: RTCSessionDescriptionInit }) {}
 }

@@ -294,4 +294,17 @@ export class UsersService {
       return null
     }
   }
+
+  async updateUserInfo(updatedUserInfo: User, userId: string): Promise<User> {
+    const _id = new mongoose.Types.ObjectId(userId)
+    const query = { _id }
+    try {
+      const result = await this.userModel.findOneAndUpdate(query, updatedUserInfo, { upsert: true }).lean()
+      const latestUserInfo = await this.getUserByIdAuthentication(userId)
+      return latestUserInfo
+    } catch (e) {
+      console.log('[Error at updateUserInfo]: ' + e)
+      return null
+    }
+  }
 }

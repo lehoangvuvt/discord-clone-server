@@ -84,13 +84,13 @@ export class UploadedFilesService {
     subPath += `/${section}`
     try {
       const responseUpload = await cloudinary.uploader.upload(base64, { public_id: formattedName, folder: subPath, resource_type: resourceType })
-      const attachmentModel = new this.uploadedFileModel({
+      const uploadFileModel = new this.uploadedFileModel({
         name,
         type,
         section,
         path: responseUpload.secure_url,
       })
-      const result = await attachmentModel.save()
+      const result = await uploadFileModel.save()
       return result
     } catch (error) {
       return null
