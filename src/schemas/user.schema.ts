@@ -10,10 +10,10 @@ export class User {
   @Transform(({ value }) => value.toString())
   _id: ObjectId
 
-  @Prop({ unique: true, required: true })
+  @Prop({ unique: true, required: true, minlength: 4 })
   username: string
 
-  @Prop({ required: true })
+  @Prop({ required: true, minlength: 4 })
   password: string
 
   @Prop({ default: '' })

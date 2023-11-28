@@ -53,6 +53,7 @@ export class MessageGateway {
   @SubscribeMessage('joinChannel')
   async handleStartGame(client: Socket, data: string) {
     const clientData: { _id: ObjectId; channelId: ObjectId } = JSON.parse(data)
+    console.log('JOINED_ CHANNEL: ' + clientData.channelId)
     if (!this.clients.has(clientData._id)) client.disconnect()
     const user = await this.usersService.getUserById(clientData._id)
     if (!user) client.disconnect()

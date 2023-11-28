@@ -4,6 +4,7 @@ import { IsNotEmpty, MinLength, NotContains } from 'class-validator'
 export default class CreateUserDTO {
   @IsNotEmpty()
   @NotContains(' ')
+  @MinLength(5)
   username: string
 
   @IsNotEmpty()

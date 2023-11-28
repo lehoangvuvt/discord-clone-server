@@ -8,8 +8,8 @@ export class Server {
   @Transform(({ value }) => value.toString())
   _id: ObjectId
 
-  @Prop({ unique: true, required: true })
-  name: string
+  @Prop({ required: true })
+  name: string  
 
   @Prop({ default: '' })
   avatar: string
