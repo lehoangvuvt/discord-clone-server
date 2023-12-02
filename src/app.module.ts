@@ -18,6 +18,7 @@ import { AuthModule } from './auth/auth.module'
       user: process.env.DATABASE_USER,
       pass: process.env.DATABASE_PASSWORD,
       dbName: process.env.DATABASE_NAME,
+      autoIndex: true,
     }),
     UsersModule,
     ChannelsModule,

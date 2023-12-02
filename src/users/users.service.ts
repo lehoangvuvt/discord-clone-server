@@ -12,6 +12,7 @@ import { Attachment } from 'src/schemas/attachment.schema'
 import { MessageAttachment } from 'src/schemas/message-attachment'
 import UploadFileDTO from 'src/dtos/upload-file.dto'
 import { writeFile } from 'mz/fs'
+import { RelationshipTypeEnum, UserRelationship } from 'src/schemas/user-relationship'
 
 @Injectable()
 export class UsersService {
@@ -21,7 +22,8 @@ export class UsersService {
     @InjectModel(Server.name) private serverModel: Model<Server>,
     @InjectModel(MessageHistory.name) private messageHistoryModel: Model<MessageHistory>,
     @InjectModel(Attachment.name) private attachmentModel: Model<Attachment>,
-    @InjectModel(MessageAttachment.name) private messageAttachmentModel: Model<MessageAttachment>
+    @InjectModel(MessageAttachment.name) private messageAttachmentModel: Model<MessageAttachment>,
+    @InjectModel(UserRelationship.name) private userRelationshipModel: Model<UserRelationship>
   ) {}
 
   async create(userDTO: CreateUserDTO): Promise<User> {
@@ -34,7 +36,6 @@ export class UsersService {
         name: userDTO.name,
       })
       const response = await userModel.save()
-      this.setServersToUser(response._id)
       return response
     } else {
       return null
@@ -228,6 +229,11 @@ export class UsersService {
           ],
         },
       },
+      {
+        $project: {
+          password: 0,
+        },
+      },
     ])
     return result
   }
@@ -304,6 +310,158 @@ export class UsersService {
       return latestUserInfo
     } catch (e) {
       console.log('[Error at updateUserInfo]: ' + e)
+      return null
+    }
+  }
+
+  async getUserFriendList(userId: string): Promise<User[]> {
+    const _id = new mongoose.Types.ObjectId(userId)
+    const matchedRecords = await this.userRelationshipModel
+      .find({ $or: [{ userFirstId: _id }, { userSecondId: _id }], $and: [{ type: RelationshipTypeEnum.FRIEND }] })
+      .lean()
+    let friends: User[] = []
+    if (matchedRecords.length > 0) {
+      const friendIds = []
+      matchedRecords.forEach((record) => {
+        if (JSON.stringify(record.userFirstId).replace('"', '').replace('"', '') !== userId) {
+          friendIds.push(record.userFirstId)
+        }
+        if (JSON.stringify(record.userSecondId).replace('"', '').replace('"', '') !== userId) {
+          friendIds.push(record.userSecondId)
+        }
+      })
+      friends = await this.userModel.find({ _id: { $in: friendIds } }).select({ password: 0 })
+    }
+    return friends
+  }
+
+  async getUserPendingRequests(userId: string): Promise<{
+    receiveFromUsers: { user: User; request: UserRelationship }[]
+    sentToUsers: { user: User; request: UserRelationship }[]
+  }> {
+    let result: { receiveFromUsers: { user: User; request: UserRelationship }[]; sentToUsers: { user: User; request: UserRelationship }[] } = {
+      receiveFromUsers: [],
+      sentToUsers: [],
+    }
+    const _id = new mongoose.Types.ObjectId(userId)
+    const matchedRecords = await this.userRelationshipModel
+      .find({
+        $or: [{ userFirstId: _id }, { userSecondId: _id }],
+        $and: [
+          {
+            $or: [
+              { type: RelationshipTypeEnum.PENDING_REQUEST },
+              {
+                type: RelationshipTypeEnum.DECLINE,
+              },
+            ],
+          },
+        ],
+      })
+      .lean()
+    if (matchedRecords.length > 0) {
+      const receiveFromUsers: { user: User; request: UserRelationship }[] = []
+      const sentToUsers: { user: User; request: UserRelationship }[] = []
+      const getDatas = matchedRecords.map(async (record) => {
+        if (JSON.stringify(record.userFirstId).replace('"', '').replace('"', '') !== userId) {
+          const user = await this.userModel
+            .findOne({ _id: { $in: record.userFirstId } })
+            .select({ password: 0 })
+            .lean()
+          receiveFromUsers.push({ user, request: record })
+        }
+        if (JSON.stringify(record.userSecondId).replace('"', '').replace('"', '') !== userId) {
+          const user = await this.userModel
+            .findOne({ _id: { $in: record.userSecondId } })
+            .select({ password: 0 })
+            .lean()
+          sentToUsers.push({ user, request: record })
+        }
+      })
+      await Promise.all(getDatas)
+      result.receiveFromUsers = receiveFromUsers
+      result.sentToUsers = sentToUsers
+    }
+    return result
+  }
+
+  async sendFriendRequest(
+    userId: string,
+    targetUsername: string
+  ): Promise<
+    | {
+        status: 'Success'
+        targetUser: User
+        result: UserRelationship
+      }
+    | {
+        status: 'Error'
+        reason: 'NOT_FOUND' | 'FAILED' | 'RECEIVED_FROM_TARGET' | 'ALREADY_FRIEND' | 'BLOCKED_FROM_TARGET' | 'YOURSELF' | 'ALREADY_SENT'
+      }
+  > {
+    const _id = new mongoose.Types.ObjectId(userId)
+    const user = await this.userModel.findById({ _id })
+    const foundUser = await this.userModel.findOne({ username: targetUsername }).select({ password: 0 })
+    if (!foundUser) return { status: 'Error', reason: 'NOT_FOUND' }
+    if (user.username === foundUser.username) return { status: 'Error', reason: 'YOURSELF' }
+    const foundUserRelationship = await this.userRelationshipModel.findOne({ userFirstId: foundUser._id, userSecondId: _id })
+    if (!foundUserRelationship) {
+      const userRelationshipModel = new this.userRelationshipModel({
+        type: RelationshipTypeEnum.PENDING_REQUEST,
+        userFirstId: new mongoose.Types.ObjectId(userId),
+        userSecondId: foundUser._id,
+      })
+      try {
+        const result = await userRelationshipModel.save()
+        return {
+          status: 'Success',
+          result,
+          targetUser: foundUser,
+        }
+      } catch (err) {
+        console.log('sendFriendRequest error: ' + err)
+        if (err + ''.includes('duplicate')) return { status: 'Error', reason: 'ALREADY_SENT' }
+        return { status: 'Error', reason: 'FAILED' }
+      }
+    } else {
+      const type = foundUserRelationship.type
+      const result: {
+        status: 'Error'
+        reason: 'NOT_FOUND' | 'FAILED' | 'RECEIVED_FROM_TARGET' | 'ALREADY_FRIEND' | 'BLOCKED_FROM_TARGET' | 'YOURSELF'
+      } = { status: 'Error', reason: 'FAILED' }
+      switch (type) {
+        case RelationshipTypeEnum.PENDING_REQUEST:
+          result.reason = 'RECEIVED_FROM_TARGET'
+          break
+        case RelationshipTypeEnum.FRIEND:
+          result.reason = 'ALREADY_FRIEND'
+          break
+        case RelationshipTypeEnum.BLOCK_FIRST_SECOND:
+          result.reason = 'BLOCKED_FROM_TARGET'
+          break
+      }
+      return result
+    }
+  }
+
+  async handleFriendRequest(userId: string, requestId: string, relationshipType: RelationshipTypeEnum): Promise<UserRelationship> {
+    try {
+      const result = await this.userRelationshipModel
+        .findOneAndUpdate(
+          { _id: new mongoose.Types.ObjectId(requestId), userSecondId: new mongoose.Types.ObjectId(userId) },
+          {
+            type: relationshipType,
+          },
+          { upsert: true }
+        )
+        .exec()
+      const updatedRelationship = await this.userRelationshipModel.findOne({
+        _id: new mongoose.Types.ObjectId(requestId),
+        userSecondId: new mongoose.Types.ObjectId(userId),
+      })
+      return updatedRelationship
+    } catch (err) {
+      console.log('acceptFriendRequest error: ' + err)
       return null
     }
   }

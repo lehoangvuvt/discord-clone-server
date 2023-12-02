@@ -9,6 +9,7 @@ import { MessageHistory, MessageHistorySchema } from 'src/schemas/message-histor
 import { Server, ServerSchema } from 'src/schemas/server.schema'
 import { Attachment, AttachmentSchema } from 'src/schemas/attachment.schema'
 import { MessageAttachment, MessageAttachmentSchema } from 'src/schemas/message-attachment'
+import { UserRelationship, UserRelationshipSchema } from 'src/schemas/user-relationship'
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -18,6 +19,7 @@ import { MessageAttachment, MessageAttachmentSchema } from 'src/schemas/message-
       { name: Server.name, schema: ServerSchema },
       { name: Attachment.name, schema: AttachmentSchema },
       { name: MessageAttachment.name, schema: MessageAttachmentSchema },
+      { name: UserRelationship.name, schema: UserRelationshipSchema },
     ]),
     JwtModule.register({}),
   ],

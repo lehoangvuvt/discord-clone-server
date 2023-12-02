@@ -8,8 +8,9 @@ import { ObjectId } from 'mongoose'
 import UploadFileDTO from 'src/dtos/upload-file.dto'
 import { User } from 'src/schemas/user.schema'
 import { TokenVerifyGuard } from 'src/auth/tokenVerify.guard'
-import { SUCCESS, UN_AUTHENTICATED } from 'src/consts/httpCodes'
+import { BAD_REQUEST, SUCCESS, UN_AUTHENTICATED, UN_PROCESSABLE } from 'src/consts/httpCodes'
 import AuthService from 'src/auth/auth.service'
+import { RelationshipTypeEnum } from 'src/schemas/user-relationship'
 
 @Controller('users')
 export class UsersController {
@@ -25,6 +26,13 @@ export class UsersController {
         error: 'Error',
       })
     }
+  }
+
+  @Get('logout')
+  async logOut(@Req() req: any, @Res() res: Response) {
+    res.clearCookie('access_token')
+    res.clearCookie('refresh_token')
+    return res.status(SUCCESS).json({ message: 'Logout success' })
   }
 
   @Post('login')
@@ -58,7 +66,7 @@ export class UsersController {
       res.cookie('access_token', accessToken, tokenConfig.accessToken.cookieOptions)
       return res.status(SUCCESS).json(validateToken)
     } else {
-      return res.status(401).json({ error: 'Refresh token invalid' })
+      return res.status(UN_AUTHENTICATED).json({ error: 'Refresh token invalid' })
     }
   }
 
@@ -71,7 +79,7 @@ export class UsersController {
       if (!validateToken) return res.status(401).json({ error: 'Authentication failed' })
       return res.status(SUCCESS).json({ ...validateToken, accessToken, refreshToken })
     } else {
-      return res.status(401).json({ error: 'Authentication failed' })
+      return res.status(UN_AUTHENTICATED).json({ error: 'Authentication failed' })
     }
   }
 
@@ -111,7 +119,7 @@ export class UsersController {
     if (response) {
       return res.status(SUCCESS).json(response)
     } else {
-      return res.status(401).send({ error: 'Error at upload file: ' + uploadFileDTO.name })
+      return res.status(UN_PROCESSABLE).send({ error: 'Error at upload file: ' + uploadFileDTO.name })
     }
   }
 
@@ -123,7 +131,45 @@ export class UsersController {
     delete updatedUserInfo.password
     delete updatedUserInfo._id
     const response = await this.service.updateUserInfo(updatedUserInfo, userId)
-    if (!response) return res.status(400).json({ error: 'Cannot update user info' })
+    if (!response) return res.status(BAD_REQUEST).json({ error: 'Cannot update user info' })
+    return res.status(SUCCESS).json(response)
+  }
+
+  @UseGuards(TokenVerifyGuard)
+  @Get('friends')
+  async getFriendsList(@Req() req: any, @Res() res: Response) {
+    const userId = req._id
+    const response = await this.service.getUserFriendList(userId)
+    if (!response) return res.status(BAD_REQUEST).json({ error: 'Cannot getFriendsList' })
+    return res.status(SUCCESS).json(response)
+  }
+
+  @UseGuards(TokenVerifyGuard)
+  @Get('pending-requests')
+  async getUserPendingRequests(@Req() req: any, @Res() res: Response) {
+    const userId = req._id
+    const response = await this.service.getUserPendingRequests(userId)
+    if (!response) return res.status(BAD_REQUEST).json({ error: 'Cannot getUserPendingRequests' })
+    return res.status(SUCCESS).json(response)
+  }
+
+  @UseGuards(TokenVerifyGuard)
+  @Post('send-friend-request')
+  async sendFriendRequest(@Body() body: { targetUsername: string }, @Req() req: any, @Res() res: Response) {
+    const { targetUsername } = body
+    const userId = req._id
+    const response = await this.service.sendFriendRequest(userId, targetUsername)
+    if (response.status === 'Error') return res.status(BAD_REQUEST).json({ error: response.reason })
+    return res.status(SUCCESS).json(response)
+  }
+
+  @UseGuards(TokenVerifyGuard)
+  @Post('handle-friend-request')
+  async handleFriendRequest(@Body() body: { requestId: string; relationshipType: RelationshipTypeEnum }, @Req() req: any, @Res() res: Response) {
+    const { requestId, relationshipType } = body
+    const userId = req._id
+    const response = await this.service.handleFriendRequest(userId, requestId, relationshipType)
+    if (!response) return res.status(BAD_REQUEST).json({ error: 'Cannot sendFriendRequest' })
     return res.status(SUCCESS).json(response)
   }
 }
