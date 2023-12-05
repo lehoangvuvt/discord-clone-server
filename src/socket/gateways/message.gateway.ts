@@ -3,27 +3,31 @@ import { Server, Socket } from 'socket.io'
 import { UsersService } from '../../users/users.service'
 import { JwtService } from '@nestjs/jwt'
 import { tokenConfig } from '../../config/token.config'
-import { ObjectId } from 'mongoose'
-import * as RTCMultiConnectionServer from 'rtcmulticonnection-server'
 
 type Client = {
-  userId: ObjectId
+  userId: string
   clientId: string
-  channelId?: ObjectId
+  channelId?: string
+  serverId?: string
 }
 
 @WebSocketGateway({ namespace: '/socket/message' })
 export class MessageGateway {
   constructor(private usersService: UsersService, private jwtService: JwtService) {}
-  private clients: Map<ObjectId, Client> = new Map()
+  private clients: Map<string, Client> = new Map()
 
   @WebSocketServer()
   server: Server
 
-  async handleConnection(client: Socket) {
-    console.log('connected')
-    if (!client.handshake && client.handshake.auth && client.handshake.auth.accessToken) client.disconnect()
+  async authenticate(_id: string) {
+    if (!this.clients.has(_id)) return false
+    const user = await this.usersService.getUserById(_id)
+    if (!user) return false
+    return true
+  }
 
+  async handleConnection(client: Socket) {
+    if (!client.handshake && client.handshake.auth && client.handshake.auth.accessToken) client.disconnect()
     try {
       console.log(client.handshake.auth.accessToken)
       const decoded = await this.jwtService.verifyAsync(client.handshake.auth.accessToken, {
@@ -33,7 +37,7 @@ export class MessageGateway {
       const _id = decoded._id
       const user = await this.usersService.getUserById(_id)
       if (!user) client.disconnect()
-      this.clients.set(_id, { userId: _id, clientId: client.id })
+      this.clients.set(_id, { userId: _id, clientId: client.id, channelId: null, serverId: null })
       client.send('connected', 'asda')
     } catch (err) {
       console.log(err)
@@ -41,6 +45,7 @@ export class MessageGateway {
       client.disconnect()
     }
   }
+
   @SubscribeMessage('disconnect')
   async handleDisconnect(client: Socket, data: string) {
     for (let [key, value] of this.clients) {
@@ -50,71 +55,204 @@ export class MessageGateway {
     }
   }
 
-  @SubscribeMessage('joinChannel')
-  async handleStartGame(client: Socket, data: string) {
-    const clientData: { _id: ObjectId; channelId: ObjectId } = JSON.parse(data)
-    console.log('JOINED_ CHANNEL: ' + clientData.channelId)
-    if (!this.clients.has(clientData._id)) client.disconnect()
-    const user = await this.usersService.getUserById(clientData._id)
-    if (!user) client.disconnect()
+  @SubscribeMessage('joinServer')
+  async handleJoinServer(client: Socket, data: string) {
+    const clientData: { _id: string; serverId: string } = JSON.parse(data)
+    const { _id, serverId } = clientData
 
-    if (this.clients.get(clientData._id).channelId) {
-      const currentChannelId = this.clients.get(clientData._id).channelId
-      let userIdsInChannels = []
-      for (var [_, item] of this.clients) {
-        if (item.channelId === currentChannelId && item.userId !== clientData._id) {
-          userIdsInChannels.push(item.userId)
-        }
-      }
-      this.server.emit(`receiveOnlineChannel=${currentChannelId}`, JSON.stringify(userIdsInChannels))
+    const isAuth = await this.authenticate(_id)
+    if (!isAuth) return client.disconnect()
+
+    const existedClient = this.clients.get(_id)
+    const currentChannelId = existedClient.channelId
+    const currentServerId = existedClient.serverId
+
+    if (currentChannelId) {
+      client.leave(currentChannelId)
+      console.log('[handleJoinServer] client.leave(currentChannelId)')
     }
 
-    this.clients.set(clientData._id, {
-      channelId: clientData.channelId,
-      userId: clientData._id,
+    if (currentServerId) {
+      client.leave(currentServerId)
+      console.log('[handleJoinServer] client.leave(currentServerId)')
+    }
+
+    client.join(serverId)
+    console.log('[handleJoinServer] client.join(serverId): ' + serverId)
+
+    this.clients.set(_id, {
+      ...this.clients.get(_id),
+      serverId: serverId,
       clientId: client.id,
     })
 
-    this.server.to(client.id).emit('joinedChannel', clientData.channelId)
+    this.server.to(client.id).emit('joinedServer', serverId)
+  }
+
+  @SubscribeMessage('leaveServer')
+  async handleLeaveServer(client: Socket, data: string) {
+    const clientData: { _id: string } = JSON.parse(data)
+    const { _id } = clientData
+
+    const isAuth = await this.authenticate(_id)
+    if (!isAuth) return client.disconnect()
+
+    const existedClient = this.clients.get(_id)
+    const currentChannelId = existedClient.channelId
+    const currentServerId = existedClient.serverId
+
+    if (currentChannelId) {
+      client.leave(currentChannelId)
+      console.log('[leaveChannel] client.leave(currentChannelId)')
+    }
+
+    if (currentServerId) {
+      client.leave(currentServerId)
+      console.log('[leaveChannel] client.leave(currentServerId)')
+    }
+
+    this.clients.set(_id, {
+      ...this.clients.get(_id),
+      channelId: null,
+      serverId: null,
+    })
+  }
+
+  @SubscribeMessage('joinChannel')
+  async handleJoinChannel(client: Socket, data: string) {
+    const clientData: { _id: string; channelId: string } = JSON.parse(data)
+    const { _id, channelId } = clientData
+
+    const isAuth = await this.authenticate(_id)
+    if (!isAuth) return client.disconnect()
+
+    const currentChannelId = this.clients.get(_id).channelId
+    if (currentChannelId) {
+      client.leave(currentChannelId)
+      console.log('[joinChannel] client.leave(currentChannelId)')
+      let userIdsInChannels = []
+      for (var [_, item] of this.clients) {
+        if (item.channelId === currentChannelId && item.userId !== _id) {
+          userIdsInChannels.push(item.userId)
+        }
+      }
+      this.server.to(channelId).emit(`receiveOnlineChannel`, JSON.stringify(userIdsInChannels))
+    }
+
+    client.join(channelId)
+    console.log('[joinChannel] client.join(channelId): ' + channelId)
+
+    this.clients.set(_id, {
+      ...this.clients.get(_id),
+      channelId: channelId,
+      clientId: client.id,
+    })
+
+    this.server.to(client.id).emit('joinedChannel', channelId)
+
     let userIdsInChannels = []
     for (var [_, item] of this.clients) {
-      if (item.channelId === clientData.channelId) {
+      if (item.channelId === channelId) {
         userIdsInChannels.push(item.userId)
       }
     }
-    this.server.emit(`receiveOnlineChannel=${clientData.channelId}`, JSON.stringify(userIdsInChannels))
+
+    this.server.to(channelId).emit(`receiveOnlineChannel`, JSON.stringify(userIdsInChannels))
   }
 
   @SubscribeMessage('leaveChannel')
   async handleLeaveChannel(client: Socket, data: string) {
-    const clientData: { _id: ObjectId; channelId: ObjectId } = JSON.parse(data)
-    if (!this.clients.has(clientData._id)) client.disconnect()
-    const user = await this.usersService.getUserById(clientData._id)
-    if (!user) client.disconnect()
-    this.server.emit(`receiveMessageChannel=${clientData.channelId}`)
+    const clientData: { _id: string } = JSON.parse(data)
+    const { _id } = clientData
+
+    const isAuth = await this.authenticate(_id)
+    if (!isAuth) return client.disconnect()
+
+    if (this.clients.get(_id).channelId) {
+      const currentChannelId = this.clients.get(_id).channelId
+      client.leave(currentChannelId)
+      this.clients.set(_id, {
+        ...this.clients.get(_id),
+        channelId: null,
+      })
+      console.log('[leaveChannel] client.leave(currentChannelId): ' + currentChannelId)
+    }
   }
 
   @SubscribeMessage('send')
   async handleSendMessage(client: Socket, data: string) {
-    const clientData: { channelId: ObjectId; userId: ObjectId; message: string; fileIds: string[] } = JSON.parse(data)
+    const clientData: { channelId: string; userId: string; message: string; fileIds: string[]; receiverId: string; type: 'channel' | 'p2p' } = JSON.parse(data)
+    const { channelId, fileIds, message, receiverId, type, userId } = clientData
+
+    const isAuth = await this.authenticate(userId)
+    if (!isAuth) return client.disconnect()
+
     await this.usersService.sendMessage({
-      channelId: clientData.channelId,
-      message: clientData.message,
-      userId: clientData.userId,
-      fileIds: clientData.fileIds,
+      channelId: channelId,
+      message: message,
+      userId: userId,
+      fileIds: fileIds,
     })
-    this.server.emit(`receiveMessageChannel=${clientData.channelId}`)
+    this.server.to(channelId).emit(`receiveMessageChannel`)
+    // if (type === 'channel') {
+    //   this.server.emit(`receiveMessageChannel=${clientData.channelId}`)
+    // }
   }
 
   @SubscribeMessage('sendVoice')
   async handleSendVoice(client: Socket, data: string) {
-    const clientData: { base64: string; serverId: string; userId: string } = JSON.parse(data)
-    const newData: string[] = clientData.base64.split(';')
+    const clientData: { base64: string; userId: string } = JSON.parse(data)
+    const { base64, userId } = clientData
+
+    const isAuth = await this.authenticate(userId)
+    if (!isAuth) return client.disconnect()
+    if (!this.clients.get(userId).serverId) return client.disconnect()
+
+    const currentServerId = this.clients.get(userId).serverId
+    const newData: string[] = base64.split(';')
     newData[0] = 'data:audio/ogg;'
     const newDataString = newData[0] + newData[1]
-    this.server.emit(`receiveVoiceServer=${clientData.serverId}`, JSON.stringify({ base64: newDataString, senderId: clientData.userId }))
+
+    this.server.to(currentServerId).emit(`receiveVoiceServer`, JSON.stringify({ base64: newDataString, senderId: userId }))
   }
 
-  @SubscribeMessage('joinVoice')
-  handleJoinVoice(client: Socket, data: { serverId: string; offer: RTCSessionDescriptionInit }) {}
+  @SubscribeMessage('sendFriendRequest')
+  async handleSendFriendRequest(client: Socket, data: string) {
+    const clientData: { targetUserId: string } = JSON.parse(data)
+    if (this.clients.get(clientData.targetUserId)) {
+      const clientId = this.clients.get(clientData.targetUserId).clientId
+      this.server.to(clientId).emit('receiveFriendRequest')
+    }
+  }
+
+  @SubscribeMessage('updatePendingRequest')
+  async handleUpdatePendingRequest(client: Socket, data: string) {
+    const clientData: { receiverFromUserId: string } = JSON.parse(data)
+    if (this.clients.get(clientData.receiverFromUserId)) {
+      const clientId = this.clients.get(clientData.receiverFromUserId).clientId
+      this.server.to(clientId).emit('receiveUpdatePendingRequest')
+    }
+  }
+
+  @SubscribeMessage('sendP2PMessage')
+  async handleJoinP2P(client: Socket, data: string) {
+    const clientData: { userId: string; message: string; fileIds: string[]; receiverId: string } = JSON.parse(data)
+    const { userId, message, fileIds, receiverId } = clientData
+
+    const isAuth = await this.authenticate(userId)
+    if (!isAuth) return client.disconnect()
+
+    const response = await this.usersService.sendP2PMessage({
+      message: message,
+      userId: userId,
+      fileIds: fileIds,
+      receiverId: receiverId,
+    })
+
+    const receiverClient = this.clients.get(receiverId)
+    if (receiverClient) {
+      this.server.to(receiverClient.clientId).emit(`receiveP2PMessage`)
+    }
+    this.server.to(client.id).emit(`receiveP2PMessage`)
+  }
 }

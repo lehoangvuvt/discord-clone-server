@@ -10,6 +10,8 @@ import { MessageHistory, MessageHistorySchema } from 'src/schemas/message-histor
 import { MessageAttachment, MessageAttachmentSchema } from 'src/schemas/message-attachment'
 import { UserServer, UserServerSchema } from 'src/schemas/user-server.schema'
 import { AuthModule } from 'src/auth/auth.module'
+import { ServerInvitation, ServerInvitationSchema } from 'src/schemas/server-invitation'
+import { UserInvitation, UserInvitationSchema } from 'src/schemas/user-invitation'
 
 @Module({
   imports: [
@@ -19,9 +21,11 @@ import { AuthModule } from 'src/auth/auth.module'
       { name: MessageHistory.name, schema: MessageHistorySchema },
       { name: MessageAttachment.name, schema: MessageAttachmentSchema },
       { name: UserServer.name, schema: UserServerSchema },
+      { name: ServerInvitation.name, schema: ServerInvitationSchema },
+      { name: UserInvitation.name, schema: UserInvitationSchema },
     ]),
     JwtModule.register({}),
-    AuthModule
+    AuthModule,
   ],
   controllers: [ServersController],
   providers: [ServersService, ChannelsService],

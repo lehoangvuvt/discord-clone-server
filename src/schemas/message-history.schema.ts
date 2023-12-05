@@ -14,13 +14,17 @@ export class MessageHistory {
   @Prop({ required: true })
   message: string
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'users' })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'users', index: true })
   @Type(() => User)
   userId: ObjectId
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'channels' })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'channels', index: true })
   @Type(() => Channel)
   channelId: ObjectId
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'users', index: true })
+  @Type(() => User)
+  receiverId: ObjectId
 }
 
 export const MessageHistorySchema = SchemaFactory.createForClass(MessageHistory)

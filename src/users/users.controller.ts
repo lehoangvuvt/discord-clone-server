@@ -30,8 +30,8 @@ export class UsersController {
 
   @Get('logout')
   async logOut(@Req() req: any, @Res() res: Response) {
-    res.clearCookie('access_token')
-    res.clearCookie('refresh_token')
+    res.clearCookie('access_token', { path: '/' })
+    res.clearCookie('refresh_token', { path: '/' })
     return res.status(SUCCESS).json({ message: 'Logout success' })
   }
 
@@ -96,7 +96,7 @@ export class UsersController {
   }
 
   @Post('send-message')
-  async sendMessage(@Body() body: { message: string; channelId: ObjectId; userId: ObjectId; fileIds: string[] }, @Res() res: Response) {
+  async sendMessage(@Body() body: { message: string; channelId: string; userId: string; fileIds: string[]; receiverId: string }, @Res() res: Response) {
     const response = await this.service.sendMessage(body)
     return res.json(response)
   }
@@ -171,5 +171,21 @@ export class UsersController {
     const response = await this.service.handleFriendRequest(userId, requestId, relationshipType)
     if (!response) return res.status(BAD_REQUEST).json({ error: 'Cannot sendFriendRequest' })
     return res.status(SUCCESS).json(response)
+  }
+
+  @UseGuards(TokenVerifyGuard)
+  @Get('message-history/targetUserId=:targetUserId&page=:page&limit=:limit')
+  async getMessageHistory(@Param() param: { targetUserId: string; page: number; limit: number }, @Req() req: any, @Res() res: Response) {
+    const userId = req._id
+    const response = await this.service.getP2PMessageHistory(userId, param.targetUserId, parseInt(param.page.toString()), parseInt(param.limit.toString()))
+    return res.status(200).json(response)
+  }
+
+  @UseGuards(TokenVerifyGuard)
+  @Get('new-messages/targetUserId=:targetUserId&dateTime=:datetime')
+  async getNewMessages(@Param() param: { targetUserId: string; datetime: string }, @Req() req: any, @Res() res: Response) {
+    const userId = req._id
+    const response = await this.service.getP2PNewMessagesSinceDT(userId, param.targetUserId, param.datetime)
+    return res.status(200).json(response)
   }
 }

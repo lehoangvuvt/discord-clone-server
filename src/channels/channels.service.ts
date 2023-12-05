@@ -35,7 +35,7 @@ export class ChannelsService {
   }> {
     const id = new mongoose.Types.ObjectId(channelId)
     const skip = limit * (page - 1)
-    const amount = await this.messageHistoryModel.find({ channelId: id }).count()
+    const amount = await this.messageHistoryModel.count({ channelId: id })
     const totalPage = Math.floor(amount / limit)
 
     const result = await this.messageHistoryModel

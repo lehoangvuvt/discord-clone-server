@@ -7,12 +7,12 @@ import CreateUserDTO from '../dtos/create-user.dto'
 import { UserServer } from 'src/schemas/user-server.schema'
 import { MessageHistory } from 'src/schemas/message-history.schema'
 import { Server } from 'src/schemas/server.schema'
-import CreateAttachmentDTO from 'src/dtos/create-attachment.dto'
 import { Attachment } from 'src/schemas/attachment.schema'
 import { MessageAttachment } from 'src/schemas/message-attachment'
 import UploadFileDTO from 'src/dtos/upload-file.dto'
 import { writeFile } from 'mz/fs'
 import { RelationshipTypeEnum, UserRelationship } from 'src/schemas/user-relationship'
+import { SendFriendRequestErrorReasonEnum } from 'src/types/enum.types'
 
 @Injectable()
 export class UsersService {
@@ -50,13 +50,11 @@ export class UsersService {
     })
   }
 
-  async login(userDTO: CreateUserDTO): Promise<any> {
+  async getUserInfo(query: { [key: string]: any }): Promise<User> {
     const foundUser: any[] = await this.userModel
       .aggregate([
         {
-          $match: {
-            username: userDTO.username,
-          },
+          $match: query,
         },
         {
           $lookup: {
@@ -64,6 +62,24 @@ export class UsersService {
             localField: '_id',
             foreignField: 'creator',
             as: 'createdServers',
+            pipeline: [
+              {
+                $lookup: {
+                  from: 'serverinvitations',
+                  as: 'invitation',
+                  localField: '_id',
+                  foreignField: 'serverId',
+                },
+              },
+              {
+                $lookup: {
+                  from: 'channels',
+                  as: 'channels',
+                  localField: '_id',
+                  foreignField: 'serverId',
+                },
+              },
+            ],
           },
         },
         {
@@ -79,7 +95,28 @@ export class UsersService {
                   localField: 'serverId',
                   foreignField: '_id',
                   as: 'details',
+                  pipeline: [
+                    {
+                      $lookup: {
+                        from: 'serverinvitations',
+                        as: 'invitation',
+                        localField: '_id',
+                        foreignField: 'serverId',
+                      },
+                    },
+                    {
+                      $lookup: {
+                        from: 'channels',
+                        as: 'channels',
+                        localField: '_id',
+                        foreignField: 'serverId',
+                      },
+                    },
+                  ],
                 },
+              },
+              {
+                $unwind: '$details',
               },
             ],
           },
@@ -89,20 +126,59 @@ export class UsersService {
         },
       ])
       .exec()
+    console.log(query)
     if (foundUser?.length > 0) {
       let formattedUserData = { ...foundUser[0] }
-      formattedUserData.joinedServers = formattedUserData.joinedServers.map((ele) => {
-        return {
-          _id: ele._id,
-          createdAt: ele.createdAt,
-          updatedAt: ele.updatedAt,
-          ...ele.details[0],
+      formattedUserData.createdServers = formattedUserData.createdServers.map((ele) => {
+        if (ele.invitation[0]) {
+          return {
+            ...ele,
+            invitation: {
+              ...ele.invitation[0],
+            },
+          }
+        } else {
+          return {
+            ...ele,
+            invitation: null,
+          }
         }
       })
 
-      const isPasswordValid = compareSync(userDTO.password, foundUser[0].password)
-      if (isPasswordValid) {
-        delete formattedUserData.password
+      formattedUserData.joinedServers = formattedUserData.joinedServers.map((ele) => {
+        if (ele.details.invitation[0]) {
+          return {
+            _id: ele._id,
+            createdAt: ele.createdAt,
+            updatedAt: ele.updatedAt,
+            ...ele.details,
+            invitation: {
+              ...ele.details.invitation[0],
+            },
+          }
+        } else {
+          return {
+            _id: ele._id,
+            createdAt: ele.createdAt,
+            updatedAt: ele.updatedAt,
+            ...ele.details,
+            invitation: null,
+          }
+        }
+      })
+      delete formattedUserData.password
+      return formattedUserData
+    } else {
+      return null
+    }
+  }
+
+  async login(userDTO: CreateUserDTO): Promise<any> {
+    const userModel = await this.userModel.findOne({ username: userDTO.username }).lean()
+    const isPasswordValid = compareSync(userDTO.password, userModel.password)
+    if (isPasswordValid) {
+      const formattedUserData = await this.getUserInfo({ username: userDTO.username })
+      if (formattedUserData) {
         return formattedUserData
       } else {
         return null
@@ -136,61 +212,14 @@ export class UsersService {
     return result
   }
 
-  async getUserById(userId: ObjectId): Promise<User> {
-    const result = await this.userModel.findOne({ _id: userId }).lean()
+  async getUserById(userId: string): Promise<User> {
+    const result = await this.userModel.findOne({ _id: new mongoose.Types.ObjectId(userId) }).lean()
     return result
   }
 
   async getUserByIdAuthentication(userId: string): Promise<User> {
-    const foundUser: any[] = await this.userModel
-      .aggregate([
-        {
-          $match: {
-            _id: new mongoose.Types.ObjectId(userId),
-          },
-        },
-        {
-          $lookup: {
-            from: 'servers',
-            localField: '_id',
-            foreignField: 'creator',
-            as: 'createdServers',
-          },
-        },
-        {
-          $lookup: {
-            from: 'userservers',
-            localField: '_id',
-            foreignField: 'userId',
-            as: 'joinedServers',
-            pipeline: [
-              {
-                $lookup: {
-                  from: 'servers',
-                  localField: 'serverId',
-                  foreignField: '_id',
-                  as: 'details',
-                },
-              },
-            ],
-          },
-        },
-        {
-          $limit: 1,
-        },
-      ])
-      .exec()
-    if (foundUser?.length > 0) {
-      let formattedUserData = { ...foundUser[0] }
-      formattedUserData.joinedServers = formattedUserData.joinedServers.map((ele) => {
-        return {
-          _id: ele._id,
-          createdAt: ele.createdAt,
-          updatedAt: ele.updatedAt,
-          ...ele.details[0],
-        }
-      })
-      delete formattedUserData.password
+    const formattedUserData = await this.getUserInfo({ _id: new mongoose.Types.ObjectId(userId) })
+    if (formattedUserData) {
       return formattedUserData
     } else {
       return null
@@ -247,9 +276,41 @@ export class UsersService {
     return response
   }
 
-  async sendMessage(data: { message: string; channelId: ObjectId; userId: ObjectId; fileIds: string[] }): Promise<MessageHistory> {
+  async sendMessage(data: { message: string; channelId: string; userId: string; fileIds: string[] }): Promise<MessageHistory> {
     const { channelId, message, userId, fileIds } = data
-    const messageHistoryModel = new this.messageHistoryModel({ channelId, message, userId })
+    const messageHistoryModel = new this.messageHistoryModel({
+      channelId: new mongoose.Types.ObjectId(channelId),
+      message,
+      userId: new mongoose.Types.ObjectId(userId),
+    })
+    const response = await messageHistoryModel.save()
+    if (fileIds && fileIds.length > 0) {
+      const createAttachments = fileIds.map(async (fileId) => {
+        const attachmentModel = new this.attachmentModel({
+          fileId: new mongoose.Types.ObjectId(fileId),
+        })
+        const result = await attachmentModel.save()
+        if (result) {
+          const messageAttachmentModel = new this.messageAttachmentModel({
+            attachmentId: result._id,
+            messageId: response._id,
+          })
+          await messageAttachmentModel.save()
+        }
+      })
+
+      await Promise.all(createAttachments)
+    }
+    return response
+  }
+
+  async sendP2PMessage(data: { message: string; receiverId: string; userId: string; fileIds: string[] }): Promise<MessageHistory> {
+    const { userId, receiverId, message, fileIds } = data
+    const messageHistoryModel = new this.messageHistoryModel({
+      receiverId: new mongoose.Types.ObjectId(receiverId),
+      message,
+      userId: new mongoose.Types.ObjectId(userId),
+    })
     const response = await messageHistoryModel.save()
     if (fileIds && fileIds.length > 0) {
       const createAttachments = fileIds.map(async (fileId) => {
@@ -396,7 +457,7 @@ export class UsersService {
       }
     | {
         status: 'Error'
-        reason: 'NOT_FOUND' | 'FAILED' | 'RECEIVED_FROM_TARGET' | 'ALREADY_FRIEND' | 'BLOCKED_FROM_TARGET' | 'YOURSELF' | 'ALREADY_SENT'
+        reason: SendFriendRequestErrorReasonEnum
       }
   > {
     const _id = new mongoose.Types.ObjectId(userId)
@@ -427,7 +488,7 @@ export class UsersService {
       const type = foundUserRelationship.type
       const result: {
         status: 'Error'
-        reason: 'NOT_FOUND' | 'FAILED' | 'RECEIVED_FROM_TARGET' | 'ALREADY_FRIEND' | 'BLOCKED_FROM_TARGET' | 'YOURSELF'
+        reason: SendFriendRequestErrorReasonEnum
       } = { status: 'Error', reason: 'FAILED' }
       switch (type) {
         case RelationshipTypeEnum.PENDING_REQUEST:
@@ -446,23 +507,224 @@ export class UsersService {
 
   async handleFriendRequest(userId: string, requestId: string, relationshipType: RelationshipTypeEnum): Promise<UserRelationship> {
     try {
-      const result = await this.userRelationshipModel
-        .findOneAndUpdate(
-          { _id: new mongoose.Types.ObjectId(requestId), userSecondId: new mongoose.Types.ObjectId(userId) },
-          {
-            type: relationshipType,
-          },
-          { upsert: true }
-        )
-        .exec()
-      const updatedRelationship = await this.userRelationshipModel.findOne({
-        _id: new mongoose.Types.ObjectId(requestId),
-        userSecondId: new mongoose.Types.ObjectId(userId),
-      })
-      return updatedRelationship
+      if (relationshipType === RelationshipTypeEnum.FRIEND) {
+        await this.userRelationshipModel
+          .findOneAndUpdate(
+            { _id: new mongoose.Types.ObjectId(requestId), userSecondId: new mongoose.Types.ObjectId(userId) },
+            {
+              type: relationshipType,
+            },
+            { upsert: true }
+          )
+          .exec()
+        const updatedRelationship = await this.userRelationshipModel.findOne({
+          _id: new mongoose.Types.ObjectId(requestId),
+          userSecondId: new mongoose.Types.ObjectId(userId),
+        })
+        return updatedRelationship
+      } else {
+        const result = await this.userRelationshipModel.findOneAndRemove({ _id: new mongoose.Types.ObjectId(requestId) }).exec()
+        return result
+      }
     } catch (err) {
       console.log('acceptFriendRequest error: ' + err)
       return null
+    }
+  }
+
+  async getP2PMessageHistory(
+    userId: string,
+    targetUserId: string,
+    page: number,
+    limit: number
+  ): Promise<{
+    totalPage: number
+    currentPage: number
+    data: MessageHistory[]
+    hasMore: boolean
+  }> {
+    const _userId = new mongoose.Types.ObjectId(userId)
+    const _targetUserId = new mongoose.Types.ObjectId(targetUserId)
+    const skip = limit * (page - 1)
+    const amount = await this.messageHistoryModel.count({
+      $or: [
+        { userId: _userId, receiverId: _targetUserId },
+        { userId: _targetUserId, receiverId: _userId },
+      ],
+    })
+
+    const totalPage = Math.floor(amount / limit)
+
+    const result = await this.messageHistoryModel
+      .aggregate([
+        {
+          $match: {
+            $or: [
+              {
+                userId: _userId,
+                receiverId: _targetUserId,
+              },
+              {
+                userId: _targetUserId,
+                receiverId: _userId,
+              },
+            ],
+          },
+        },
+        {
+          $sort: {
+            createdAt: -1,
+          },
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'userId',
+            foreignField: '_id',
+            as: 'userDetails',
+            pipeline: [{ $project: { password: 0 } }],
+          },
+        },
+        {
+          $unwind: '$userDetails',
+        },
+        {
+          $lookup: {
+            from: 'messageattachments',
+            localField: '_id',
+            foreignField: 'messageId',
+            as: 'attachments',
+            pipeline: [
+              {
+                $lookup: {
+                  from: 'attachments',
+                  localField: 'attachmentId',
+                  foreignField: '_id',
+                  as: 'attachmentDetails',
+                  pipeline: [
+                    {
+                      $lookup: {
+                        from: 'uploadedfiles',
+                        localField: 'fileId',
+                        foreignField: '_id',
+                        as: 'fileDetails',
+                      },
+                    },
+                    {
+                      $unwind: '$fileDetails',
+                    },
+                  ],
+                },
+              },
+              {
+                $unwind: '$attachmentDetails',
+              },
+            ],
+          },
+        },
+        { $limit: skip + limit },
+        { $skip: skip },
+      ])
+      .exec()
+    return {
+      totalPage,
+      currentPage: page,
+      hasMore: page < totalPage,
+      data: result.reverse(),
+    }
+  }
+
+  async getP2PNewMessagesSinceDT(
+    userId: string,
+    targetUserId: string,
+    datetime: string
+  ): Promise<{
+    total: number
+    data: MessageHistory[]
+  }> {
+    const _userId = new mongoose.Types.ObjectId(userId)
+    const _targetUserId = new mongoose.Types.ObjectId(targetUserId)
+    const formattedDT = new Date(datetime)
+
+    const result = await this.messageHistoryModel
+      .aggregate([
+        {
+          $match: {
+            $and: [
+              {
+                $or: [
+                  {
+                    userId: _userId,
+                    receiverId: _targetUserId,
+                  },
+                  {
+                    userId: _targetUserId,
+                    receiverId: _userId,
+                  },
+                ],
+              },
+              {
+                createdAt: { $gt: formattedDT },
+              },
+            ],
+          },
+        },
+        {
+          $sort: {
+            createdAt: -1,
+          },
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'userId',
+            foreignField: '_id',
+            as: 'userDetails',
+            pipeline: [{ $project: { password: 0 } }],
+          },
+        },
+        {
+          $unwind: '$userDetails',
+        },
+        {
+          $lookup: {
+            from: 'messageattachments',
+            localField: '_id',
+            foreignField: 'messageId',
+            as: 'attachments',
+            pipeline: [
+              {
+                $lookup: {
+                  from: 'attachments',
+                  localField: 'attachmentId',
+                  foreignField: '_id',
+                  as: 'attachmentDetails',
+                  pipeline: [
+                    {
+                      $lookup: {
+                        from: 'uploadedfiles',
+                        localField: 'fileId',
+                        foreignField: '_id',
+                        as: 'fileDetails',
+                      },
+                    },
+                    {
+                      $unwind: '$fileDetails',
+                    },
+                  ],
+                },
+              },
+              {
+                $unwind: '$attachmentDetails',
+              },
+            ],
+          },
+        },
+      ])
+      .exec()
+    return {
+      total: result.length,
+      data: result.reverse(),
     }
   }
 }

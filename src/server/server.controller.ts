@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Res, UseGuards, Req, Param, Delete } from '@nestjs/common'
+import { Controller, Get, Post, Body, Res, UseGuards, Req, Param, Delete, Put } from '@nestjs/common'
 import { Response, Request } from 'express'
 import { JwtService } from '@nestjs/jwt'
 import { ServersService } from './server.service'
@@ -6,11 +6,8 @@ import CreateServerDTO from 'src/dtos/create-server.dto'
 import { ObjectId } from 'mongoose'
 import { TokenVerifyGuard } from 'src/auth/tokenVerify.guard'
 import { ChannelsService } from 'src/channels/channels.service'
-import { User } from 'src/schemas/user.schema'
-import { tokenConfig } from 'src/config/token.config'
-import { UsersService } from 'src/users/users.service'
 import AuthService from 'src/auth/auth.service'
-import { BAD_REQUEST, SUCCESS } from 'src/consts/httpCodes'
+import { BAD_REQUEST, SUCCESS, UN_AUTHENTICATED } from 'src/consts/httpCodes'
 
 @Controller('servers')
 export class ServersController {
@@ -29,6 +26,12 @@ export class ServersController {
     }
   }
 
+  @Get(':serverId')
+  async getServerInfp(@Param() param: { serverId: string }, @Res() res: Response) {
+    const result = await this.service.getServerInfo(param.serverId)
+    return res.status(200).json(result)
+  }
+
   @Get('get-channels/:serverId')
   async getServerChannels(@Param() param: { serverId: ObjectId }, @Res() res: Response) {
     const response = await this.service.getServerChannels(param.serverId)
@@ -45,7 +48,24 @@ export class ServersController {
       if (!response) return res.status(BAD_REQUEST).json({ error: 'Something error' })
       return res.status(SUCCESS).json(response)
     } else {
-      return res.status(401).json({ error: 'Authentication failed' })
+      return res.status(UN_AUTHENTICATED).json({ error: 'Authentication failed' })
     }
+  }
+
+  @UseGuards(TokenVerifyGuard)
+  @Post('create/server-invitation')
+  async createServerInvitation(@Body() body: { serverId: string }, @Req() request: Request, @Res() res: Response) {
+    const response = await this.service.createServerInvitation(body.serverId)
+    if (!response) return res.status(BAD_REQUEST).json({ error: 'Something error' })
+    return res.status(SUCCESS).json(response)
+  }
+
+  @UseGuards(TokenVerifyGuard)
+  @Put('use/server-invitation/:invitationId')
+  async useServerInvitation(@Param() param: { invitationId: string }, @Req() req: any, @Res() res: Response) {
+    const userId = req._id
+    const response = await this.service.useServerInvitation(param.invitationId, userId)
+    if (response.status === 'Error') return res.status(BAD_REQUEST).json({ error: response.errorMsg })
+    return res.status(SUCCESS).json(response)
   }
 }
