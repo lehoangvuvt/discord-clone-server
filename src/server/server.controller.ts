@@ -60,8 +60,14 @@ export class ServersController {
     return res.status(SUCCESS).json(response)
   }
 
+  @Get('server-invitation/:invitationId')
+  async getServerInvitationDetails(@Param() param: { invitationId: string }, @Req() req: any, @Res() res: Response) {
+    const response = await this.service.getServerInvitationDetails(param.invitationId)
+    return res.status(SUCCESS).json(response)
+  }
+
   @UseGuards(TokenVerifyGuard)
-  @Put('use/server-invitation/:invitationId')
+  @Get('use/server-invitation/:invitationId')
   async useServerInvitation(@Param() param: { invitationId: string }, @Req() req: any, @Res() res: Response) {
     const userId = req._id
     const response = await this.service.useServerInvitation(param.invitationId, userId)

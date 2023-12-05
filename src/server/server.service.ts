@@ -153,8 +153,14 @@ export class ServersService {
           userId: _userId,
           invitation_short_id,
         })
-
         await userInvitationModel.save()
+
+        const userServerModel = new this.userServerModel({
+          serverId: invitation.serverId,
+          userId: _userId,
+        })
+        await userServerModel.save()
+
         return {
           status: 'Success',
         }
@@ -166,5 +172,26 @@ export class ServersService {
         }
       }
     }
+  }
+  async getServerInvitationDetails(invitation_short_id: string): Promise<ServerInvitation> {
+    const result = await this.serverInvitationModel.aggregate([
+      {
+        $match: {
+          invitation_short_id,
+        },
+      },
+      {
+        $lookup: {
+          from: 'servers',
+          localField: 'serverId',
+          foreignField: '_id',
+          as: 'serverDetails',
+        },
+      },
+      {
+        $unwind: '$serverDetails',
+      },
+    ])
+    return result[0]
   }
 }
