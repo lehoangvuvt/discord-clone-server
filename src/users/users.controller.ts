@@ -30,8 +30,8 @@ export class UsersController {
 
   @Get('logout')
   async logOut(@Req() req: any, @Res() res: Response) {
-    res.clearCookie('access_token', { path: '/' })
-    res.clearCookie('refresh_token', { path: '/' })
+    res.clearCookie('access_token', { path: '/', sameSite: 'none', secure: true })
+    res.clearCookie('refresh_token', { path: '/', sameSite: 'none', secure: true })
     return res.status(SUCCESS).json({ message: 'Logout success' })
   }
 
