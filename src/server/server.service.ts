@@ -97,16 +97,25 @@ export class ServersService {
     const dayInMs = hourInMs * 24
     const expiredDate = new Date(Date.now() + dayInMs * 7)
 
-    const serverInvitationModel = new this.serverInvitationModel({
-      serverId: new mongoose.Types.ObjectId(serverId),
-      expiredAt: expiredDate,
-    })
-    try {
-      const result = await serverInvitationModel.save()
-      return result
-    } catch (err) {
-      console.log('[createServerInvitation] error: ' + err)
-      return null
+    const existedServerInvitation = await this.serverInvitationModel
+      .findOne({
+        serverId: new mongoose.Types.ObjectId(serverId),
+      })
+      .sort({ createdAt: -1 })
+    if (existedServerInvitation && Date.now() < new Date(existedServerInvitation.expiredAt).getTime()) {
+      return existedServerInvitation
+    } else {
+      const serverInvitationModel = new this.serverInvitationModel({
+        serverId: new mongoose.Types.ObjectId(serverId),
+        expiredAt: expiredDate,
+      })
+      try {
+        const result = await serverInvitationModel.save()
+        return result
+      } catch (err) {
+        console.log('[createServerInvitation] error: ' + err)
+        return null
+      }
     }
   }
 
@@ -142,6 +151,14 @@ export class ServersService {
           return {
             status: 'Error',
             errorMsg: 'User already used this invitation link',
+          }
+        }
+
+        const existedUserServer = await this.userServerModel.findOne({ serverId: invitation.serverId, userId: _userId })
+
+        if (existedUserServer) {
+          return {
+            status: 'Success',
           }
         }
 

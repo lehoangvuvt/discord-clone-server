@@ -52,10 +52,9 @@ export class ServersController {
     }
   }
 
-  @UseGuards(TokenVerifyGuard)
-  @Post('create/server-invitation')
-  async createServerInvitation(@Body() body: { serverId: string }, @Req() request: Request, @Res() res: Response) {
-    const response = await this.service.createServerInvitation(body.serverId)
+  @Post('create/server-invitation/:serverId')
+  async createServerInvitation(@Param() param: { serverId: string }, @Req() request: Request, @Res() res: Response) {
+    const response = await this.service.createServerInvitation(param.serverId)
     if (!response) return res.status(BAD_REQUEST).json({ error: 'Something error' })
     return res.status(SUCCESS).json(response)
   }
