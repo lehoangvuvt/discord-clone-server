@@ -3,6 +3,7 @@ import mongoose, { HydratedDocument, ObjectId } from 'mongoose'
 import { Transform, Type } from 'class-transformer'
 import { Server } from './server.schema'
 import { nanoid } from 'nanoid'
+import { User } from './user.schema'
 
 export type ServerInvitationDocument = HydratedDocument<ServerInvitation>
 @Schema({ toJSON: { virtuals: true }, timestamps: true })
@@ -25,6 +26,10 @@ export class ServerInvitation {
 
   @Prop({ default: 0, type: mongoose.Schema.Types.Number })
   used_count: number
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'users', required: true })
+  @Type(() => User)
+  createdBy: ObjectId
 }
 
 export const ServerInvitationSchema = SchemaFactory.createForClass(ServerInvitation)

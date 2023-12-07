@@ -44,4 +44,9 @@ export default class AuthService {
       return false
     }
   }
+
+  async validateUserId(userId: string) {
+    const user = await this.usersService.getUserByIdAuthentication(userId)
+    return user
+  }
 }

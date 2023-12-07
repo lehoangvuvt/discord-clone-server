@@ -35,7 +35,6 @@ export class ServersService {
       } catch (err) {
         console.log('Join server error: ' + err)
       }
-      await this.createServerInvitation(result._id + '')
       return result
     } catch (err) {
       console.log('Create server error: ' + err)
@@ -92,7 +91,7 @@ export class ServersService {
     }
   }
 
-  async createServerInvitation(serverId: string): Promise<ServerInvitation> {
+  async createServerInvitation(serverId: string, userId: string): Promise<ServerInvitation> {
     const hourInMs = 1000 * 60 * 60
     const dayInMs = hourInMs * 24
     const expiredDate = new Date(Date.now() + dayInMs * 7)
@@ -100,6 +99,7 @@ export class ServersService {
     const existedServerInvitation = await this.serverInvitationModel
       .findOne({
         serverId: new mongoose.Types.ObjectId(serverId),
+        createdBy: new mongoose.Types.ObjectId(userId),
       })
       .sort({ createdAt: -1 })
     if (existedServerInvitation && Date.now() < new Date(existedServerInvitation.expiredAt).getTime()) {
@@ -108,6 +108,7 @@ export class ServersService {
       const serverInvitationModel = new this.serverInvitationModel({
         serverId: new mongoose.Types.ObjectId(serverId),
         expiredAt: expiredDate,
+        createdBy: new mongoose.Types.ObjectId(userId),
       })
       try {
         const result = await serverInvitationModel.save()
@@ -191,6 +192,11 @@ export class ServersService {
     }
   }
   async getServerInvitationDetails(invitation_short_id: string): Promise<ServerInvitation> {
+    const invitation = await this.serverInvitationModel.findOne({ invitation_short_id }).lean()
+    let isExpired = false
+    if (Date.now() >= new Date(invitation.expiredAt).getTime()) {
+      isExpired = true
+    }
     const result = await this.serverInvitationModel.aggregate([
       {
         $match: {
@@ -206,9 +212,24 @@ export class ServersService {
         },
       },
       {
+        $lookup: {
+          from: 'users',
+          as: 'creator',
+          localField: 'createdBy',
+          foreignField: '_id',
+          pipeline: [{ $project: { password: 0 } }],
+        },
+      },
+      {
+        $unwind: '$creator',
+      },
+      {
         $unwind: '$serverDetails',
       },
     ])
-    return result[0]
+    return {
+      ...result[0],
+      isExpired,
+    }
   }
 }

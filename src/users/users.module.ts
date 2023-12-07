@@ -10,6 +10,7 @@ import { Server, ServerSchema } from 'src/schemas/server.schema'
 import { Attachment, AttachmentSchema } from 'src/schemas/attachment.schema'
 import { MessageAttachment, MessageAttachmentSchema } from 'src/schemas/message-attachment'
 import { UserRelationship, UserRelationshipSchema } from 'src/schemas/user-relationship'
+import { Activity, ActivitySchema } from 'src/schemas/activity'
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -20,6 +21,7 @@ import { UserRelationship, UserRelationshipSchema } from 'src/schemas/user-relat
       { name: Attachment.name, schema: AttachmentSchema },
       { name: MessageAttachment.name, schema: MessageAttachmentSchema },
       { name: UserRelationship.name, schema: UserRelationshipSchema },
+      { name: Activity.name, schema: ActivitySchema },
     ]),
     JwtModule.register({}),
   ],

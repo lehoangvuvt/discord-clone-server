@@ -63,14 +63,14 @@ export class UsersService {
             foreignField: 'creator',
             as: 'createdServers',
             pipeline: [
-              {
-                $lookup: {
-                  from: 'serverinvitations',
-                  as: 'invitation',
-                  localField: '_id',
-                  foreignField: 'serverId',
-                },
-              },
+              // {
+              //   $lookup: {
+              //     from: 'serverinvitations',
+              //     as: 'invitations',
+              //     localField: '_id',
+              //     foreignField: 'serverId',
+              //   },
+              // },
               {
                 $lookup: {
                   from: 'channels',
@@ -96,14 +96,14 @@ export class UsersService {
                   foreignField: '_id',
                   as: 'details',
                   pipeline: [
-                    {
-                      $lookup: {
-                        from: 'serverinvitations',
-                        as: 'invitation',
-                        localField: '_id',
-                        foreignField: 'serverId',
-                      },
-                    },
+                    // {
+                    //   $lookup: {
+                    //     from: 'serverinvitations',
+                    //     as: 'invitations',
+                    //     localField: '_id',
+                    //     foreignField: 'serverId',
+                    //   },
+                    // },
                     {
                       $lookup: {
                         from: 'channels',
@@ -129,41 +129,18 @@ export class UsersService {
     console.log(query)
     if (foundUser?.length > 0) {
       let formattedUserData = { ...foundUser[0] }
-      formattedUserData.createdServers = formattedUserData.createdServers.map((ele) => {
-        if (ele.invitation[0]) {
-          return {
-            ...ele,
-            invitation: {
-              ...ele.invitation[0],
-            },
-          }
-        } else {
-          return {
-            ...ele,
-            invitation: null,
-          }
+      formattedUserData.createdServers = formattedUserData.createdServers.map((ele: any) => {
+        return {
+          ...ele,
         }
       })
 
-      formattedUserData.joinedServers = formattedUserData.joinedServers.map((ele) => {
-        if (ele.details.invitation[0]) {
-          return {
-            _id: ele._id,
-            createdAt: ele.createdAt,
-            updatedAt: ele.updatedAt,
-            ...ele.details,
-            invitation: {
-              ...ele.details.invitation[0],
-            },
-          }
-        } else {
-          return {
-            _id: ele._id,
-            createdAt: ele.createdAt,
-            updatedAt: ele.updatedAt,
-            ...ele.details,
-            invitation: null,
-          }
+      formattedUserData.joinedServers = formattedUserData.joinedServers.map((ele: any) => {
+        return {
+          _id: ele._id,
+          createdAt: ele.createdAt,
+          updatedAt: ele.updatedAt,
+          ...ele.details,
         }
       })
       delete formattedUserData.password
