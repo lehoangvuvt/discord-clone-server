@@ -29,7 +29,6 @@ export class MessageGateway {
   async handleConnection(client: Socket) {
     if (!client.handshake && client.handshake.auth && client.handshake.auth.accessToken) client.disconnect()
     try {
-      console.log(client.handshake.auth.accessToken)
       const decoded = await this.jwtService.verifyAsync(client.handshake.auth.accessToken, {
         secret: tokenConfig.ACCESS_TOKEN_SECRET_KEY,
       })
@@ -39,6 +38,7 @@ export class MessageGateway {
       if (!user) client.disconnect()
       this.clients.set(_id, { userId: _id, clientId: client.id, channelId: null, serverId: null })
       client.send('connected', 'asda')
+      console.log('connected')
     } catch (err) {
       console.log(err)
       console.log('Disconnected')
@@ -216,21 +216,12 @@ export class MessageGateway {
     this.server.to(currentServerId).emit(`receiveVoiceServer`, JSON.stringify({ base64: newDataString, senderId: userId }))
   }
 
-  @SubscribeMessage('sendFriendRequest')
-  async handleSendFriendRequest(client: Socket, data: string) {
+  @SubscribeMessage('updateActivities')
+  async handleUpdatePendingRequest(client: Socket, data: string) {
     const clientData: { targetUserId: string } = JSON.parse(data)
     if (this.clients.get(clientData.targetUserId)) {
       const clientId = this.clients.get(clientData.targetUserId).clientId
-      this.server.to(clientId).emit('receiveFriendRequest')
-    }
-  }
-
-  @SubscribeMessage('updatePendingRequest')
-  async handleUpdatePendingRequest(client: Socket, data: string) {
-    const clientData: { receiverFromUserId: string } = JSON.parse(data)
-    if (this.clients.get(clientData.receiverFromUserId)) {
-      const clientId = this.clients.get(clientData.receiverFromUserId).clientId
-      this.server.to(clientId).emit('receiveUpdatePendingRequest')
+      this.server.to(clientId).emit('updateActivities')
     }
   }
 

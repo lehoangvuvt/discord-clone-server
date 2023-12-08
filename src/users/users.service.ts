@@ -13,6 +13,7 @@ import UploadFileDTO from 'src/dtos/upload-file.dto'
 import { writeFile } from 'mz/fs'
 import { RelationshipTypeEnum, UserRelationship } from 'src/schemas/user-relationship'
 import { SendFriendRequestErrorReasonEnum } from 'src/types/enum.types'
+import { Activity, ActivityVerbEnum } from 'src/schemas/activity'
 
 @Injectable()
 export class UsersService {
@@ -23,7 +24,8 @@ export class UsersService {
     @InjectModel(MessageHistory.name) private messageHistoryModel: Model<MessageHistory>,
     @InjectModel(Attachment.name) private attachmentModel: Model<Attachment>,
     @InjectModel(MessageAttachment.name) private messageAttachmentModel: Model<MessageAttachment>,
-    @InjectModel(UserRelationship.name) private userRelationshipModel: Model<UserRelationship>
+    @InjectModel(UserRelationship.name) private userRelationshipModel: Model<UserRelationship>,
+    @InjectModel(Activity.name) private activityModel: Model<Activity>
   ) {}
 
   async create(userDTO: CreateUserDTO): Promise<User> {
@@ -451,6 +453,7 @@ export class UsersService {
       })
       try {
         const result = await userRelationshipModel.save()
+        this.createActivity(userId, foundUser._id.toString(), ActivityVerbEnum.ADD_FRIEND)
         return {
           status: 'Success',
           result,
@@ -498,9 +501,11 @@ export class UsersService {
           _id: new mongoose.Types.ObjectId(requestId),
           userSecondId: new mongoose.Types.ObjectId(userId),
         })
+        this.removeActivity(updatedRelationship.userFirstId.toString(), updatedRelationship.userSecondId.toString())
         return updatedRelationship
       } else {
         const result = await this.userRelationshipModel.findOneAndRemove({ _id: new mongoose.Types.ObjectId(requestId) }).exec()
+        this.removeActivity(result.userFirstId.toString(), result.userSecondId.toString())
         return result
       }
     } catch (err) {
@@ -703,5 +708,60 @@ export class UsersService {
       total: result.length,
       data: result.reverse(),
     }
+  }
+
+  async createActivity(actor_id: string, object_id: string, verb: ActivityVerbEnum): Promise<Activity> {
+    try {
+      const activityModel = new this.activityModel({
+        actor_id: new mongoose.Types.ObjectId(actor_id),
+        object_id: new mongoose.Types.ObjectId(object_id),
+        verb,
+      })
+      const result = await activityModel.save()
+      return result
+    } catch (err) {
+      console.log('[createActivity] error: ' + err)
+      return null
+    }
+  }
+
+  async readActivity(actor_id: string, object_id: string): Promise<Activity> {
+    const result = await this.activityModel.findOneAndUpdate(
+      { actor_id: new mongoose.Types.ObjectId(actor_id), object_id: new mongoose.Types.ObjectId(object_id) },
+      { isRead: true },
+      { upsert: true }
+    )
+    return result
+  }
+
+  async removeActivity(actor_id: string, object_id: string): Promise<Activity> {
+    const result = await this.activityModel.findOneAndRemove({
+      actor_id: new mongoose.Types.ObjectId(actor_id),
+      object_id: new mongoose.Types.ObjectId(object_id),
+    })
+    return result
+  }
+
+  async getActivities(userId: string): Promise<{ [key in ActivityVerbEnum]: Activity[] }> {
+    const activities = await this.activityModel
+      .find({
+        object_id: userId,
+        isRead: false,
+      })
+      .lean()
+
+    const notifications: { [key in ActivityVerbEnum]: Activity[] } = {
+      [ActivityVerbEnum.ADD_FRIEND]: [],
+      [ActivityVerbEnum.INVITE_TO_SERVER]: [],
+      [ActivityVerbEnum.MENTION]: [],
+      [ActivityVerbEnum.NEW_MESSAGE_CHANNEL]: [],
+      [ActivityVerbEnum.NEW_MESSAGE_P2P]: [],
+    }
+
+    activities.forEach((activity) => {
+      notifications[activity.verb].push(activity)
+    })
+
+    return notifications
   }
 }

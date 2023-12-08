@@ -188,4 +188,12 @@ export class UsersController {
     const response = await this.service.getP2PNewMessagesSinceDT(userId, param.targetUserId, param.datetime)
     return res.status(200).json(response)
   }
+
+  @UseGuards(TokenVerifyGuard)
+  @Get('activities')
+  async getActivities(@Req() req: any, @Res() res: Response) {
+    const userId = req._id
+    const response = await this.service.getActivities(userId)
+    return res.status(SUCCESS).json(response)
+  }
 }
