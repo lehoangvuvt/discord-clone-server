@@ -17,7 +17,9 @@ export class MessageGateway {
   @WebSocketServer()
   server: Server
   private clients: Map<string, Client> = new Map()
-  private redisClient = createClient()
+  private redisClient = createClient({
+    url: process.env.REDIS_PRIVATE_URL ?? process.env.REDIS_LOCAL_URL,
+  })
   constructor(private usersService: UsersService, private jwtService: JwtService) {
     this.redisClient.connect()
     this.server = new Server({
