@@ -21,6 +21,8 @@ export class RedisService {
     this.redisClient.subscribe(...channelNames, (err, count) => {
       if (err) {
         console.error('Failed to subscribe: %s', err.message)
+      } else {
+        console.log('Subsribe to ' + count)
       }
     })
   }
