@@ -30,7 +30,7 @@ export class UsersService {
     @InjectModel(Activity.name) private activityModel: Model<Activity>
   ) {
     this.publisher = createClient({
-      url: process.env.REDIS_PRIVATE_URL,
+      url: process.env.REDIS_PRIVATE_URL ?? process.env.REDIS_LOCAL_URL,
     })
     this.publisher.connect()
   }
