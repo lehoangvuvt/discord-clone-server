@@ -1,5 +1,4 @@
 import { Global, Injectable } from '@nestjs/common'
-import { RedisClientType, createClient } from 'redis'
 import { Redis } from 'ioredis'
 
 @Global()
