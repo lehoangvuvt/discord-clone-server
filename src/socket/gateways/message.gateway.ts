@@ -17,19 +17,19 @@ export class MessageGateway {
   @WebSocketServer()
   server: Server
   private clients: Map<string, Client> = new Map()
-  private redisClient = createClient({
-    url: process.env.REDIS_PRIVATE_URL ?? process.env.REDIS_LOCAL_URL,
-  })
+  // private redisClient = createClient({
+  //   url: process.env.REDIS_PRIVATE_URL ?? process.env.REDIS_LOCAL_URL,
+  // })
   constructor(private usersService: UsersService, private jwtService: JwtService) {
-    this.redisClient.connect()
+    // this.redisClient.connect()
     this.server = new Server({
       path: '/socket/message',
     })
     if (this.server) {
       console.log('has')
-      this.redisClient.subscribe('message-to-channel', (data: string) => {
-        this.server.to(data).emit(`receiveMessageChannel`)
-      })
+      // this.redisClient.subscribe('message-to-channel', (data: string) => {
+      //   this.server.to(data).emit(`receiveMessageChannel`)
+      // })
     }
   }
 
