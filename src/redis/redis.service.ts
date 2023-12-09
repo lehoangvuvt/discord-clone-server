@@ -6,7 +6,7 @@ import { Redis } from 'ioredis'
 export class RedisService {
   private redisClient: Redis
   constructor() {
-    this.redisClient = new Redis(process.env.REDIS_PRIVATE_URL ? process.env.REDIS_PRIVATE_URL + '/?family=6' : process.env.REDIS_LOCAL_URL)
+    this.redisClient = new Redis(process.env.REDIS_URL ?? process.env.REDIS_LOCAL_URL)
   }
 
   public getRedisClient(): Redis {
