@@ -30,9 +30,10 @@ export class UsersService {
     @InjectModel(Activity.name) private activityModel: Model<Activity>
   ) {
     this.publisher = createClient({
-      url: 'redis://default:OfoEjeejfkDelMpoCHJ55I5CP2JCDBKO@discord-clone-server.railway.internal:6379',
+      url: 'roundhouse.proxy.rlwy.net:21044',
       username: process.env.REDISUSER,
-      password: process.env.REDIS_PASSWORD
+      password: process.env.REDIS_PASSWORD,
+      
     })
     this.publisher.connect()
   }
