@@ -31,8 +31,6 @@ export class UsersService {
   ) {
     this.publisher = createClient({
       url: process.env.REDIS_PRIVATE_URL,
-      username: process.env.REDISUSER,
-      password: process.env.REDIS_PASSWORD
     })
     this.publisher.connect()
   }
