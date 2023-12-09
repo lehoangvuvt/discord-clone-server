@@ -30,12 +30,14 @@ export class MessageGateway {
             case 'message-to-user':
               break
             case 'activities':
+              console.log('[redis][activities]: ' + data)
               if (this.clients.get(data)) {
                 const clientId = this.clients.get(data).clientId
                 this.server.to(clientId).emit('updateActivities')
               }
               break
             case 'message-to-channel':
+              console.log('[redis][message-to-channel]: ' + data)
               this.server.to(data).emit(`receiveMessageChannel`)
               break
           }
