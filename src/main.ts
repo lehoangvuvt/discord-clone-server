@@ -6,7 +6,6 @@ import { ValidationPipe } from '@nestjs/common'
 import * as express from 'express'
 
 async function bootstrap() {
-  await new Promise(resolve => setTimeout(resolve, 3000));
   const app = await NestFactory.create(AppModule)
   app.use(cors({ credentials: true, origin: process.env.CLIENT_HOST_URL }))
   app.use(cookieParser())

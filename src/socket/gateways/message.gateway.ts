@@ -3,7 +3,7 @@ import { Server, Socket } from 'socket.io'
 import { UsersService } from '../../users/users.service'
 import { JwtService } from '@nestjs/jwt'
 import { tokenConfig } from '../../config/token.config'
-import { createClient } from 'redis'
+import { RedisService } from 'src/redis/redis.service'
 
 type Client = {
   userId: string
@@ -17,20 +17,31 @@ export class MessageGateway {
   @WebSocketServer()
   server: Server
   private clients: Map<string, Client> = new Map()
-  // private redisClient = createClient({
-  //   url: process.env.REDIS_PRIVATE_URL ?? process.env.REDIS_LOCAL_URL,
-  // })
-  constructor(private usersService: UsersService, private jwtService: JwtService) {
-    // this.redisClient.connect()
-    this.server = new Server({
-      path: '/socket/message',
-    })
-    if (this.server) {
-      console.log('has')
-      // this.redisClient.subscribe('message-to-channel', (data: string) => {
-      //   this.server.to(data).emit(`receiveMessageChannel`)
-      // })
-    }
+  constructor(private usersService: UsersService, private jwtService: JwtService, private redisService: RedisService) {
+    try {
+      this.server = new Server({
+        path: '/socket/message',
+      })
+      if (this.server) {
+        this.redisService.subscribe(['message-to-channel', 'message-to-user', 'activities'])
+
+        this.redisService.on((channel, data) => {
+          switch (channel) {
+            case 'message-to-user':
+              break
+            case 'activities':
+              if (this.clients.get(data)) {
+                const clientId = this.clients.get(data).clientId
+                this.server.to(clientId).emit('updateActivities')
+              }
+              break
+            case 'message-to-channel':
+              this.server.to(data).emit(`receiveMessageChannel`)
+              break
+          }
+        })
+      }
+    } catch (err) {}
   }
 
   async authenticate(_id: string) {

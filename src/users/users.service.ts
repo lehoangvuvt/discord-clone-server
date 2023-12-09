@@ -14,11 +14,10 @@ import { writeFile } from 'mz/fs'
 import { RelationshipTypeEnum, UserRelationship } from 'src/schemas/user-relationship'
 import { SendFriendRequestErrorReasonEnum } from 'src/types/enum.types'
 import { Activity, ActivityVerbEnum } from 'src/schemas/activity'
-import { RedisClientType, createClient } from 'redis'
+import { RedisService } from 'src/redis/redis.service'
 
 @Injectable()
 export class UsersService {
-  private publisher: RedisClientType
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(UserServer.name) private userServerModel: Model<UserServer>,
@@ -27,13 +26,9 @@ export class UsersService {
     @InjectModel(Attachment.name) private attachmentModel: Model<Attachment>,
     @InjectModel(MessageAttachment.name) private messageAttachmentModel: Model<MessageAttachment>,
     @InjectModel(UserRelationship.name) private userRelationshipModel: Model<UserRelationship>,
-    @InjectModel(Activity.name) private activityModel: Model<Activity>
-  ) {
-    this.publisher = createClient({
-      url: process.env.REDIS_PRIVATE_URL ?? process.env.REDIS_LOCAL_URL,
-    })
-    this.publisher.connect()
-  }
+    @InjectModel(Activity.name) private activityModel: Model<Activity>,
+    @Inject(RedisService) private redisService: RedisService
+  ) {}
 
   async create(userDTO: CreateUserDTO): Promise<User> {
     const result = await this.userModel.findOne({ username: userDTO.username }).exec()
@@ -287,7 +282,7 @@ export class UsersService {
         })
         await Promise.all(createAttachments)
       }
-      this.publisher.publish(`message-to-channel`, channelId)
+      this.redisService.publish(`message-to-channel`, channelId)
       return response
     } catch (err) {
       return null
@@ -465,6 +460,7 @@ export class UsersService {
       try {
         const result = await userRelationshipModel.save()
         this.createActivity(userId, foundUser._id.toString(), ActivityVerbEnum.ADD_FRIEND)
+        this.redisService.publish('activities', foundUser._id.toString())
         return {
           status: 'Success',
           result,

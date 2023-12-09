@@ -11,6 +11,7 @@ import { MessageAttachment, MessageAttachmentSchema } from 'src/schemas/message-
 import { UsersService } from 'src/users/users.service'
 import { UserRelationship, UserRelationshipSchema } from 'src/schemas/user-relationship'
 import { Activity, ActivitySchema } from 'src/schemas/activity'
+import { RedisService } from 'src/redis/redis.service'
 
 @Global()
 @Module({
@@ -29,6 +30,6 @@ import { Activity, ActivitySchema } from 'src/schemas/activity'
   ],
   controllers: [],
   exports: [AuthService],
-  providers: [AuthService, UsersService],
+  providers: [AuthService, UsersService, RedisService],
 })
 export class AuthModule {}

@@ -11,6 +11,8 @@ import { Attachment, AttachmentSchema } from 'src/schemas/attachment.schema'
 import { MessageAttachment, MessageAttachmentSchema } from 'src/schemas/message-attachment'
 import { UserRelationship, UserRelationshipSchema } from 'src/schemas/user-relationship'
 import { Activity, ActivitySchema } from 'src/schemas/activity'
+import { RedisService } from 'src/redis/redis.service'
+
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -26,7 +28,7 @@ import { Activity, ActivitySchema } from 'src/schemas/activity'
     JwtModule.register({}),
   ],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [UsersService, RedisService],
   exports: [UsersService],
 })
 export class UsersModule {}
