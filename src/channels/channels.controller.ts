@@ -1,9 +1,10 @@
-import { Body, Controller, Post, Res, Get, Param } from '@nestjs/common'
+import { Body, Controller, Post, Res, Get, Param, UseInterceptors } from '@nestjs/common'
 
 import { JwtService } from '@nestjs/jwt'
 import { ChannelsService } from './channels.service'
 import CreateChannelDTO from 'src/dtos/creacte-channel.dto'
 import { Response } from 'express'
+import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager'
 
 @Controller('channels')
 export class ChannelsController {

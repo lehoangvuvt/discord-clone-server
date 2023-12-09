@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Res, UseGuards, Req, Param } from '@nestjs/common'
+import { Controller, Get, Post, Body, Res, UseGuards, Req, Param, UseInterceptors } from '@nestjs/common'
 import { Response } from 'express'
 import { JwtService } from '@nestjs/jwt'
 import { UsersService } from './users.service'
@@ -11,6 +11,7 @@ import { TokenVerifyGuard } from 'src/auth/tokenVerify.guard'
 import { BAD_REQUEST, SUCCESS, UN_AUTHENTICATED, UN_PROCESSABLE } from 'src/consts/httpCodes'
 import AuthService from 'src/auth/auth.service'
 import { RelationshipTypeEnum } from 'src/schemas/user-relationship'
+import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager'
 
 @Controller('users')
 export class UsersController {

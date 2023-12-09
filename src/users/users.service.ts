@@ -1,5 +1,5 @@
 import mongoose, { Model, ObjectId } from 'mongoose'
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { User } from '../schemas/user.schema'
 import { compareSync, hashSync } from 'bcrypt'
@@ -14,9 +14,11 @@ import { writeFile } from 'mz/fs'
 import { RelationshipTypeEnum, UserRelationship } from 'src/schemas/user-relationship'
 import { SendFriendRequestErrorReasonEnum } from 'src/types/enum.types'
 import { Activity, ActivityVerbEnum } from 'src/schemas/activity'
+import { RedisClientType, createClient } from 'redis'
 
 @Injectable()
 export class UsersService {
+  private publisher: RedisClientType
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(UserServer.name) private userServerModel: Model<UserServer>,
@@ -26,7 +28,12 @@ export class UsersService {
     @InjectModel(MessageAttachment.name) private messageAttachmentModel: Model<MessageAttachment>,
     @InjectModel(UserRelationship.name) private userRelationshipModel: Model<UserRelationship>,
     @InjectModel(Activity.name) private activityModel: Model<Activity>
-  ) {}
+  ) {
+    this.publisher = createClient({
+      url: process.env.REDIS_PRIVATE_URL ?? process.env.REDIS_LOCAL_URL
+    })
+    this.publisher.connect()
+  }
 
   async create(userDTO: CreateUserDTO): Promise<User> {
     const result = await this.userModel.findOne({ username: userDTO.username }).exec()
@@ -257,30 +264,34 @@ export class UsersService {
 
   async sendMessage(data: { message: string; channelId: string; userId: string; fileIds: string[] }): Promise<MessageHistory> {
     const { channelId, message, userId, fileIds } = data
-    const messageHistoryModel = new this.messageHistoryModel({
-      channelId: new mongoose.Types.ObjectId(channelId),
-      message,
-      userId: new mongoose.Types.ObjectId(userId),
-    })
-    const response = await messageHistoryModel.save()
-    if (fileIds && fileIds.length > 0) {
-      const createAttachments = fileIds.map(async (fileId) => {
-        const attachmentModel = new this.attachmentModel({
-          fileId: new mongoose.Types.ObjectId(fileId),
-        })
-        const result = await attachmentModel.save()
-        if (result) {
-          const messageAttachmentModel = new this.messageAttachmentModel({
-            attachmentId: result._id,
-            messageId: response._id,
-          })
-          await messageAttachmentModel.save()
-        }
+    try {
+      const messageHistoryModel = new this.messageHistoryModel({
+        channelId: new mongoose.Types.ObjectId(channelId),
+        message,
+        userId: new mongoose.Types.ObjectId(userId),
       })
-
-      await Promise.all(createAttachments)
+      const response = await messageHistoryModel.save()
+      if (fileIds && fileIds.length > 0) {
+        const createAttachments = fileIds.map(async (fileId) => {
+          const attachmentModel = new this.attachmentModel({
+            fileId: new mongoose.Types.ObjectId(fileId),
+          })
+          const result = await attachmentModel.save()
+          if (result) {
+            const messageAttachmentModel = new this.messageAttachmentModel({
+              attachmentId: result._id,
+              messageId: response._id,
+            })
+            await messageAttachmentModel.save()
+          }
+        })
+        await Promise.all(createAttachments)
+      }
+      this.publisher.publish(`message-to-channel`, channelId)
+      return response
+    } catch (err) {
+      return null
     }
-    return response
   }
 
   async sendP2PMessage(data: { message: string; receiverId: string; userId: string; fileIds: string[] }): Promise<MessageHistory> {

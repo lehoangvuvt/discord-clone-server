@@ -1,10 +1,11 @@
 import mongoose, { Model, ObjectId } from 'mongoose'
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Channel } from 'src/schemas/channel.schema'
 import CreateChannelDTO from 'src/dtos/creacte-channel.dto'
 import { MessageHistory } from 'src/schemas/message-history.schema'
 import { MessageAttachment } from 'src/schemas/message-attachment'
+import { CACHE_MANAGER } from '@nestjs/cache-manager'
 
 @Injectable()
 export class ChannelsService {

@@ -3,6 +3,7 @@ import { Server, Socket } from 'socket.io'
 import { UsersService } from '../../users/users.service'
 import { JwtService } from '@nestjs/jwt'
 import { tokenConfig } from '../../config/token.config'
+import { createClient } from 'redis'
 
 type Client = {
   userId: string
@@ -13,11 +14,22 @@ type Client = {
 
 @WebSocketGateway({ namespace: '/socket/message' })
 export class MessageGateway {
-  constructor(private usersService: UsersService, private jwtService: JwtService) {}
-  private clients: Map<string, Client> = new Map()
-
   @WebSocketServer()
   server: Server
+  private clients: Map<string, Client> = new Map()
+  private redisClient = createClient()
+  constructor(private usersService: UsersService, private jwtService: JwtService) {
+    this.redisClient.connect()
+    this.server = new Server({
+      path: '/socket/message',
+    })
+    if (this.server) {
+      console.log('has')
+      this.redisClient.subscribe('message-to-channel', (data: string) => {
+        this.server.to(data).emit(`receiveMessageChannel`)
+      })
+    }
+  }
 
   async authenticate(_id: string) {
     if (!this.clients.has(_id)) return false
@@ -193,7 +205,6 @@ export class MessageGateway {
       userId: userId,
       fileIds: fileIds,
     })
-    this.server.to(channelId).emit(`receiveMessageChannel`)
     // if (type === 'channel') {
     //   this.server.emit(`receiveMessageChannel=${clientData.channelId}`)
     // }
