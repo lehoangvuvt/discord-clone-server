@@ -33,8 +33,12 @@ export class RedisService {
     })
   }
 
-  public set(key: string, data: any) {
-    this.redisClient.set(key, JSON.stringify(data))
+  public set(key: string, data: string) {
+    this.redisClient.set(key, data)
+  }
+
+  public setex(key: string, seconds: number, data: string) {
+    this.redisClient.setex(key, seconds, data)
   }
 
   public async get<T>(key: string): Promise<T> {
