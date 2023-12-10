@@ -27,7 +27,7 @@ export class ServersController {
   }
 
   @Get(':serverId')
-  async getServerInfp(@Param() param: { serverId: string }, @Res() res: Response) {
+  async getServerInfo(@Param() param: { serverId: string }, @Res() res: Response) {
     const result = await this.service.getServerInfo(param.serverId)
     return res.status(200).json(result)
   }

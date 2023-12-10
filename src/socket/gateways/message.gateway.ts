@@ -28,6 +28,16 @@ export class MessageGateway {
         this.redisService.on((channel, data) => {
           switch (channel) {
             case 'message-to-user':
+              console.log('[redis][message-to-user]: ' + data)
+              const { userId, receiverId } = JSON.parse(data)
+              if (this.clients.get(userId)) {
+                const clientId = this.clients.get(userId).clientId
+                this.server.to(clientId).emit('receiveP2PMessage')
+              }
+              if (this.clients.get(receiverId)) {
+                const clientId = this.clients.get(receiverId).clientId
+                this.server.to(clientId).emit('receiveP2PMessage')
+              }
               break
             case 'activities':
               console.log('[redis][activities]: ' + data)
@@ -259,12 +269,7 @@ export class MessageGateway {
     const isAuth = await this.authenticate(userId)
     if (!isAuth) return client.disconnect()
 
-    const response = await this.usersService.sendP2PMessage({
-      message: message,
-      userId: userId,
-      fileIds: fileIds,
-      receiverId: receiverId,
-    })
+    const response = await this.usersService.sendP2PMessage(message, receiverId, userId, fileIds)
 
     const receiverClient = this.clients.get(receiverId)
     if (receiverClient) {

@@ -12,6 +12,7 @@ import { UserServer, UserServerSchema } from 'src/schemas/user-server.schema'
 import { AuthModule } from 'src/auth/auth.module'
 import { ServerInvitation, ServerInvitationSchema } from 'src/schemas/server-invitation'
 import { UserInvitation, UserInvitationSchema } from 'src/schemas/user-invitation'
+import { RedisService } from 'src/redis/redis.service'
 
 @Module({
   imports: [
@@ -28,7 +29,7 @@ import { UserInvitation, UserInvitationSchema } from 'src/schemas/user-invitatio
     AuthModule,
   ],
   controllers: [ServersController],
-  providers: [ServersService, ChannelsService],
+  providers: [ServersService, ChannelsService, RedisService],
   exports: [ServersService],
 })
 export class ServersModule {}

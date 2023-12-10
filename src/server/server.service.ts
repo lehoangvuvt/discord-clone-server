@@ -1,5 +1,5 @@
 import mongoose, { Model, ObjectId } from 'mongoose'
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Server } from 'src/schemas/server.schema'
 import CreateServerDTO from 'src/dtos/create-server.dto'
@@ -7,6 +7,7 @@ import { Channel } from 'src/schemas/channel.schema'
 import { UserServer } from 'src/schemas/user-server.schema'
 import { ServerInvitation } from 'src/schemas/server-invitation'
 import { UserInvitation } from 'src/schemas/user-invitation'
+import { RedisService } from 'src/redis/redis.service'
 
 @Injectable()
 export class ServersService {
@@ -15,7 +16,8 @@ export class ServersService {
     @InjectModel(Channel.name) private channelModel: Model<Channel>,
     @InjectModel(UserServer.name) private userServerModel: Model<UserServer>,
     @InjectModel(ServerInvitation.name) private serverInvitationModel: Model<ServerInvitation>,
-    @InjectModel(UserInvitation.name) private userInvitationModel: Model<UserInvitation>
+    @InjectModel(UserInvitation.name) private userInvitationModel: Model<UserInvitation>,
+    @Inject(RedisService) private redisService: RedisService
   ) {}
 
   async createServer(serverDTO: CreateServerDTO, userId: string): Promise<Server> {
@@ -31,6 +33,7 @@ export class ServersService {
           serverId: result._id,
           userId: new mongoose.Types.ObjectId(userId),
         })
+        this.redisService.hdel('user', userId.toString());
         await userServerModel.save()
       } catch (err) {
         console.log('Join server error: ' + err)
@@ -84,6 +87,7 @@ export class ServersService {
   async leaveServer(serverId: string, userId: ObjectId): Promise<UserServer> {
     try {
       const result = await this.userServerModel.findOneAndRemove({ serverId: new mongoose.Types.ObjectId(serverId), userId }).exec()
+      this.redisService.hdel('user', userId.toString())
       return result
     } catch (error) {
       console.log('leaveServer error: ' + error)

@@ -8,7 +8,7 @@ import { ObjectId } from 'mongoose'
 import UploadFileDTO from 'src/dtos/upload-file.dto'
 import { User } from 'src/schemas/user.schema'
 import { TokenVerifyGuard } from 'src/auth/tokenVerify.guard'
-import { BAD_REQUEST, SUCCESS, UN_AUTHENTICATED, UN_PROCESSABLE } from 'src/consts/httpCodes'
+import { BAD_REQUEST, INTERNAL_SERVER, SUCCESS, UN_AUTHENTICATED, UN_PROCESSABLE } from 'src/consts/httpCodes'
 import AuthService from 'src/auth/auth.service'
 import { RelationshipTypeEnum } from 'src/schemas/user-relationship'
 import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager'
@@ -99,7 +99,16 @@ export class UsersController {
   @Post('send-message')
   async sendMessage(@Body() body: { message: string; channelId: string; userId: string; fileIds: string[]; receiverId: string }, @Res() res: Response) {
     const response = await this.service.sendMessage(body)
-    return res.json(response)
+    if (!response) return res.status(INTERNAL_SERVER).json({ error: 'Something error' })
+    return res.status(SUCCESS).json(response)
+  }
+
+  @Post('send-p2p-message')
+  async sendP2PMessage(@Body() body: { message: string; userId: string; fileIds: string[]; receiverId: string }, @Res() res: Response) {
+    const { message, userId, fileIds, receiverId } = body
+    const response = await this.service.sendP2PMessage(message, receiverId, userId, fileIds)
+    if (!response) return res.status(INTERNAL_SERVER).json({ error: 'Something error' })
+    return res.status(SUCCESS).json(response)
   }
 
   @Post('get-users-by-ids')

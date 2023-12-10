@@ -199,11 +199,18 @@ export class UsersService {
   }
 
   async getUserByIdAuthentication(userId: string): Promise<User> {
-    const formattedUserData = await this.getUserInfo({ _id: new mongoose.Types.ObjectId(userId) })
-    if (formattedUserData) {
-      return formattedUserData
+    const cacheUserInfo = await this.redisService.hget<User>('user', userId)
+    if (cacheUserInfo) {
+      console.log('cached')
+      return cacheUserInfo
     } else {
-      return null
+      const formattedUserData = await this.getUserInfo({ _id: new mongoose.Types.ObjectId(userId) })
+      if (formattedUserData) {
+        this.redisService.hset('user', userId, JSON.stringify(formattedUserData))
+        return formattedUserData
+      } else {
+        return null
+      }
     }
   }
 
@@ -253,8 +260,13 @@ export class UsersService {
       serverId,
       userId,
     })
-    const response = await userServerModel.save()
-    return response
+    try {
+      const response = await userServerModel.save()
+      this.redisService.hdel('user', userId.toString())
+      return response
+    } catch (err) {
+      console.log('[joinServer] error: ' + err)
+    }
   }
 
   async sendMessage(data: { message: string; channelId: string; userId: string; fileIds: string[] }): Promise<MessageHistory> {
@@ -285,36 +297,41 @@ export class UsersService {
       this.redisService.publish(`message-to-channel`, channelId)
       return response
     } catch (err) {
+      console.log('[sendMessage] Error: ' + err)
       return null
     }
   }
 
-  async sendP2PMessage(data: { message: string; receiverId: string; userId: string; fileIds: string[] }): Promise<MessageHistory> {
-    const { userId, receiverId, message, fileIds } = data
+  async sendP2PMessage(message: string, receiverId: string, userId: string, fileIds: string[]): Promise<MessageHistory> {
     const messageHistoryModel = new this.messageHistoryModel({
       receiverId: new mongoose.Types.ObjectId(receiverId),
       message,
       userId: new mongoose.Types.ObjectId(userId),
     })
-    const response = await messageHistoryModel.save()
-    if (fileIds && fileIds.length > 0) {
-      const createAttachments = fileIds.map(async (fileId) => {
-        const attachmentModel = new this.attachmentModel({
-          fileId: new mongoose.Types.ObjectId(fileId),
-        })
-        const result = await attachmentModel.save()
-        if (result) {
-          const messageAttachmentModel = new this.messageAttachmentModel({
-            attachmentId: result._id,
-            messageId: response._id,
+    try {
+      const response = await messageHistoryModel.save()
+      if (fileIds && fileIds.length > 0) {
+        const createAttachments = fileIds.map(async (fileId) => {
+          const attachmentModel = new this.attachmentModel({
+            fileId: new mongoose.Types.ObjectId(fileId),
           })
-          await messageAttachmentModel.save()
-        }
-      })
-
-      await Promise.all(createAttachments)
+          const result = await attachmentModel.save()
+          if (result) {
+            const messageAttachmentModel = new this.messageAttachmentModel({
+              attachmentId: result._id,
+              messageId: response._id,
+            })
+            await messageAttachmentModel.save()
+          }
+        })
+        await Promise.all(createAttachments)
+      }
+      this.redisService.publish('message-to-user', JSON.stringify({ userId, receiverId }))
+      return response
+    } catch (err) {
+      console.log('[sendP2PMessage] Error: ' + err)
+      return null
     }
-    return response
   }
 
   async uploadFile(uploadFileDTO: UploadFileDTO) {
@@ -352,6 +369,7 @@ export class UsersService {
     const query = { _id }
     try {
       const result = await this.userModel.findOneAndUpdate(query, updatedUserInfo, { upsert: true }).lean()
+      this.redisService.hdel('user', userId)
       const latestUserInfo = await this.getUserByIdAuthentication(userId)
       return latestUserInfo
     } catch (e) {
