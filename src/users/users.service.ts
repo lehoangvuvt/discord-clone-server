@@ -200,7 +200,7 @@ export class UsersService {
 
   async getUserByIdAuthentication(userId: string): Promise<User> {
     const cacheUserInfo = await this.redisService.hget<User>('user', userId)
-    if (1 !== 1) {
+    if (cacheUserInfo) {
       console.log('cached')
       return cacheUserInfo
     } else {
