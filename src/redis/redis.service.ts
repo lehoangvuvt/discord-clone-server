@@ -8,7 +8,7 @@ import amqplib from 'amqplib/callback_api'
 export class RedisService {
   private redisClient: Redis
   constructor(@Inject(RabbitMQService) private rabbitMQService: RabbitMQService) {
-    this.redisClient = new Redis(process.env.REDIS_LOCAL_URL)
+    this.redisClient = new Redis(process.env.REDIS_URL)
     if (process.env.ENVIRONMENT === 'DEV') {
       this.rabbitMQService.connect((connection: amqplib.Connection, channel: amqplib.Channel, error: any) => {
         if (error) throw error
