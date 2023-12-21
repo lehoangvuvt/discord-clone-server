@@ -5,7 +5,6 @@ dotenv.config({ path: '.env' })
 const commonOptions: CookieOptions = {
   sameSite: 'none',
   secure: true,
-  domain: process.env.CLIENT_HOST_URL,
   httpOnly: true,
 }
 
