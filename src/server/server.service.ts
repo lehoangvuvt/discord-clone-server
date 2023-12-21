@@ -33,7 +33,7 @@ export class ServersService {
           serverId: result._id,
           userId: new mongoose.Types.ObjectId(userId),
         })
-        this.redisService.hdel('user', userId.toString());
+        this.redisService.hdel('user', userId.toString())
         await userServerModel.save()
       } catch (err) {
         console.log('Join server error: ' + err)

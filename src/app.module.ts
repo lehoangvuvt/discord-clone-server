@@ -10,19 +10,18 @@ import { ConfigModule } from '@nestjs/config'
 import { AttachmentModule } from './attachment/attachment.module'
 import { UploadedFilesModule } from './upload-files/upload-files.module'
 import { AuthModule } from './auth/auth.module'
-import { CacheModule } from '@nestjs/cache-manager'
-import * as redisStore from 'cache-manager-redis-store'
+import { MailModule } from './mail/mail.module'
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
-    // CacheModule.register({ isGlobal: true, store: redisStore, host: 'localhost', port: 6379 }),
     MongooseModule.forRoot(process.env.DATABASE_CONNECTION_STRING, {
       user: process.env.DATABASE_USER,
       pass: process.env.DATABASE_PASSWORD,
       dbName: process.env.DATABASE_NAME,
       autoIndex: true,
     }),
+    MailModule,
     UsersModule,
     ChannelsModule,
     ServersModule,

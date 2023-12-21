@@ -21,6 +21,9 @@ export class User {
 
   @Prop({ default: 'https://png.pngtree.com/png-clipart/20220112/ourmid/pngtree-cartoon-hand-drawn-default-avatar-png-image_4154232.png' })
   avatar: string
+
+  @Prop({ default: '', required: true, type: mongoose.Schema.Types.String })
+  email: string
 }
 
 export const UserSchema = SchemaFactory.createForClass(User)

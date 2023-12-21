@@ -15,11 +15,21 @@ import { RelationshipTypeEnum, UserRelationship } from 'src/schemas/user-relatio
 import { SendFriendRequestErrorReasonEnum } from 'src/types/enum.types'
 import { Activity, ActivityVerbEnum } from 'src/schemas/activity'
 import { RedisService } from 'src/redis/redis.service'
+import amqplib from 'amqplib/callback_api'
+import { PendingRegister } from 'src/schemas/pending-register.schema'
+import { PendingRegisterOTP } from 'src/schemas/pending-register-otp.schema'
+import otpGenerator from 'otp-generator'
+import LoginDTO from 'src/dtos/login.dto'
+import { RequestResetPasswordErrorEnum, RequestResetPasswordRes, SendMailData, VerifyErrorTypeEnum, VerifyOTPRes } from 'src/types/api.types'
+import RabbitMQService from 'src/rabbitmq/rabbitmq.service'
+import { ResetPasswordRequest } from 'src/schemas/reset-password-request'
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
+    @InjectModel(PendingRegister.name) private pendingRegisterModel: Model<PendingRegister>,
+    @InjectModel(PendingRegisterOTP.name) private pendingRegisterOTPModel: Model<PendingRegisterOTP>,
     @InjectModel(UserServer.name) private userServerModel: Model<UserServer>,
     @InjectModel(Server.name) private serverModel: Model<Server>,
     @InjectModel(MessageHistory.name) private messageHistoryModel: Model<MessageHistory>,
@@ -27,19 +37,56 @@ export class UsersService {
     @InjectModel(MessageAttachment.name) private messageAttachmentModel: Model<MessageAttachment>,
     @InjectModel(UserRelationship.name) private userRelationshipModel: Model<UserRelationship>,
     @InjectModel(Activity.name) private activityModel: Model<Activity>,
-    @Inject(RedisService) private redisService: RedisService
-  ) {}
+    @InjectModel(ResetPasswordRequest.name) private resetPasswordRequestModel: Model<ResetPasswordRequest>,
+    @Inject(RedisService) private redisService: RedisService,
+    @Inject(RabbitMQService) private rabbitMQService: RabbitMQService
+  ) {
+    if (process.env.ENVIRONMENT === 'DEV') {
+      this.rabbitMQService.connect((connection: amqplib.Connection, channel: amqplib.Channel, error: any) => {
+        if (error) throw error
+      })
+    }
+  }
 
-  async create(userDTO: CreateUserDTO): Promise<User> {
-    const result = await this.userModel.findOne({ username: userDTO.username }).exec()
+  async create(userDTO: CreateUserDTO): Promise<PendingRegister> {
+    const result = await this.userModel.findOne({ $or: [{ username: userDTO.username }, { email: userDTO.email }] }).exec()
     if (!result) {
       const hashedPassword = hashSync(userDTO.password, 10)
-      const userModel = new this.userModel({
+      const pendingRegisterModel = new this.pendingRegisterModel({
         password: hashedPassword,
         username: userDTO.username,
         name: userDTO.name,
+        email: userDTO.email,
       })
-      const response = await userModel.save()
+      const response = await pendingRegisterModel.save()
+
+      const otpCode = otpGenerator.generate(5, { digits: true, lowerCaseAlphabets: false, upperCaseAlphabets: false, specialChars: false })
+      const hourInSeconds = 1000 * 60 * 60
+      const expiredAt = new Date(Date.now() + hourInSeconds)
+      const pendingRegisterOTPModel = new this.pendingRegisterOTPModel({
+        code: otpCode,
+        expiredAt,
+        pending_register_id: response._id,
+        valid: true,
+      })
+      const result = await pendingRegisterOTPModel.save()
+
+      const sendMailData: SendMailData = {
+        to: pendingRegisterModel.email,
+        code: result.code,
+        url: response.url,
+        type: 'VERIFY',
+      }
+
+      if (process.env.ENVIRONMENT === 'DEV') {
+        this.rabbitMQService.channel.sendToQueue('task_send_mail', Buffer.from(JSON.stringify(sendMailData)), {
+          persistent: true,
+        })
+      } else {
+        this.redisService.publish('task_send_mail', JSON.stringify(sendMailData))
+      }
+
+      delete response.password
       return response
     } else {
       return null
@@ -154,11 +201,11 @@ export class UsersService {
     }
   }
 
-  async login(userDTO: CreateUserDTO): Promise<any> {
-    const userModel = await this.userModel.findOne({ username: userDTO.username }).lean()
-    const isPasswordValid = compareSync(userDTO.password, userModel.password)
+  async login(loginDTO: LoginDTO): Promise<any> {
+    const userModel = await this.userModel.findOne({ username: loginDTO.username }).lean()
+    const isPasswordValid = compareSync(loginDTO.password, userModel.password)
     if (isPasswordValid) {
-      const formattedUserData = await this.getUserInfo({ username: userDTO.username })
+      const formattedUserData = await this.getUserInfo({ username: loginDTO.username })
       if (formattedUserData) {
         return formattedUserData
       } else {
@@ -295,6 +342,7 @@ export class UsersService {
         await Promise.all(createAttachments)
       }
       this.redisService.publish(`message-to-channel`, channelId)
+      this.rabbitMQService.channel.assertExchange('logs', 'fanout', { durable: false })
       return response
     } catch (err) {
       console.log('[sendMessage] Error: ' + err)
@@ -776,11 +824,11 @@ export class UsersService {
       .lean()
 
     const notifications: { [key in ActivityVerbEnum]: Activity[] } = {
-      [ActivityVerbEnum.ADD_FRIEND]: [],
-      [ActivityVerbEnum.INVITE_TO_SERVER]: [],
-      [ActivityVerbEnum.MENTION]: [],
-      [ActivityVerbEnum.NEW_MESSAGE_CHANNEL]: [],
-      [ActivityVerbEnum.NEW_MESSAGE_P2P]: [],
+      ADD_FRIEND: [],
+      INVITE_TO_SERVER: [],
+      MENTION: [],
+      NEW_MESSAGE_CHANNEL: [],
+      NEW_MESSAGE_P2P: [],
     }
 
     activities.forEach((activity) => {
@@ -788,5 +836,132 @@ export class UsersService {
     })
 
     return notifications
+  }
+
+  async verify(pendingRegisterUrl: string, otpCode: number): Promise<VerifyOTPRes> {
+    const pendingRegister = await this.pendingRegisterModel.findOne({ url: pendingRegisterUrl }).lean()
+    if (!pendingRegister) {
+      return {
+        status: 'Error',
+        errorType: VerifyErrorTypeEnum.INVALID_URL,
+      }
+    }
+    const pendingRegisterOTP = await this.pendingRegisterOTPModel.findOne({ code: otpCode, pending_register_id: pendingRegister._id }).lean()
+    if (!pendingRegisterOTP) {
+      return {
+        status: 'Error',
+        errorType: VerifyErrorTypeEnum.INVALID_OTP,
+      }
+    }
+
+    if (Date.now() >= new Date(pendingRegisterOTP.expiredAt).getTime()) {
+      return {
+        status: 'Error',
+        errorType: VerifyErrorTypeEnum.EXPIRED,
+      }
+    }
+
+    const userModel = new this.userModel({
+      email: pendingRegister.email,
+      name: pendingRegister.name,
+      password: pendingRegister.password,
+      username: pendingRegister.username,
+    })
+
+    const result = await userModel.save()
+
+    const remove1 = await this.pendingRegisterModel.findOneAndRemove({
+      _id: pendingRegister._id,
+    })
+
+    const remove2 = await this.pendingRegisterOTPModel.findOneAndRemove({
+      _id: pendingRegisterOTP._id,
+    })
+
+    delete result.password
+
+    return {
+      status: 'Success',
+      data: result,
+    }
+  }
+
+  async getPendingRegisterInfoByURL(url: string): Promise<PendingRegister> {
+    const result = await this.pendingRegisterModel.aggregate([
+      {
+        $match: {
+          url,
+        },
+      },
+      {
+        $limit: 1,
+      },
+    ])
+    if (result.length === 0) return null
+    delete result[0].password
+    return result[0]
+  }
+
+  async resendCode(url: string): Promise<PendingRegister> {
+    const pendingRegister = await this.pendingRegisterModel.findOne({ url }).lean()
+    if (!pendingRegister) return null
+    try {
+      const otpCode = otpGenerator.generate(5, { digits: true, lowerCaseAlphabets: false, upperCaseAlphabets: false, specialChars: false })
+      const hourInSeconds = 1000 * 60 * 60
+      const expiredAt = new Date(Date.now() + hourInSeconds)
+      const pendingRegisterOTPModel = new this.pendingRegisterOTPModel({
+        code: otpCode,
+        expiredAt,
+        pending_register_id: pendingRegister._id,
+        valid: true,
+      })
+      const result = await pendingRegisterOTPModel.save()
+      const sendMailData: SendMailData = {
+        to: pendingRegister.email,
+        code: result.code,
+        url: pendingRegister.url,
+        type: 'VERIFY',
+      }
+      if (process.env.ENVIRONMENT === 'DEV') {
+        this.rabbitMQService.channel.sendToQueue('task_send_mail', Buffer.from(JSON.stringify(sendMailData)), {
+          persistent: true,
+        })
+      } else {
+        this.redisService.publish('task_send_mail', JSON.stringify(sendMailData))
+      }
+      const updatedPendingRegister = await this.getPendingRegisterInfoByURL(url)
+      return updatedPendingRegister
+    } catch (err) {
+      console.log('[resendCode] error: ' + err)
+      return null
+    }
+  }
+
+  async requestResetPassword(email: string): Promise<RequestResetPasswordRes> {
+    const existedUser = await this.userModel.findOne({ email }).lean()
+    if (!existedUser) {
+      return {
+        status: 'Error',
+        errorType: RequestResetPasswordErrorEnum.WRONG_EMAIL,
+      }
+    }
+
+    const hourInSeconds = 1000 * 60 * 60
+    const expiredAt = new Date(Date.now() + hourInSeconds)
+    const resetPasswordRequestModel = new this.resetPasswordRequestModel({
+      expiredAt,
+      userId: existedUser._id,
+    })
+    const result = await resetPasswordRequestModel.save()
+
+    const sendMailData: SendMailData = {
+      to: email,
+      requestId: result.request_id,
+      username: existedUser.username,
+      type: 'RESET_PASSWORD',
+    }
+    this.rabbitMQService.channel.sendToQueue('task_send_mail', Buffer.from(JSON.stringify(sendMailData)), {
+      persistent: true,
+    })
   }
 }

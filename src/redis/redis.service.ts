@@ -1,12 +1,19 @@
-import { Global, Injectable } from '@nestjs/common'
+import { Global, Inject, Injectable } from '@nestjs/common'
 import { Redis } from 'ioredis'
+import RabbitMQService from 'src/rabbitmq/rabbitmq.service'
+import amqplib from 'amqplib/callback_api'
 
 @Global()
 @Injectable()
 export class RedisService {
   private redisClient: Redis
-  constructor() {
-    this.redisClient = new Redis(process.env.REDIS_URL)
+  constructor(@Inject(RabbitMQService) private rabbitMQService: RabbitMQService) {
+    this.redisClient = new Redis(process.env.REDIS_LOCAL_URL)
+    if (process.env.ENVIRONMENT === 'DEV') {
+      this.rabbitMQService.connect((connection: amqplib.Connection, channel: amqplib.Channel, error: any) => {
+        if (error) throw error
+      })
+    }
   }
 
   public getRedisClient(): Redis {

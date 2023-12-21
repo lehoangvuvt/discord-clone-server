@@ -12,6 +12,10 @@ import { MessageAttachment, MessageAttachmentSchema } from 'src/schemas/message-
 import { UserRelationship, UserRelationshipSchema } from 'src/schemas/user-relationship'
 import { Activity, ActivitySchema } from 'src/schemas/activity'
 import { RedisService } from 'src/redis/redis.service'
+import RabbitMQService from 'src/rabbitmq/rabbitmq.service'
+import { PendingRegister, PendingRegisterSchema } from 'src/schemas/pending-register.schema'
+import { PendingRegisterOTP, PendingRegisterOTPSchema } from 'src/schemas/pending-register-otp.schema'
+import { ResetPasswordRequest, ResetPasswordRequestSchema } from 'src/schemas/reset-password-request'
 
 @Module({
   imports: [
@@ -24,11 +28,14 @@ import { RedisService } from 'src/redis/redis.service'
       { name: MessageAttachment.name, schema: MessageAttachmentSchema },
       { name: UserRelationship.name, schema: UserRelationshipSchema },
       { name: Activity.name, schema: ActivitySchema },
+      { name: PendingRegister.name, schema: PendingRegisterSchema },
+      { name: PendingRegisterOTP.name, schema: PendingRegisterOTPSchema },
+      { name: ResetPasswordRequest.name, schema: ResetPasswordRequestSchema },
     ]),
     JwtModule.register({}),
   ],
   controllers: [UsersController],
-  providers: [UsersService, RedisService],
+  providers: [UsersService, RedisService, RabbitMQService],
   exports: [UsersService],
 })
 export class UsersModule {}

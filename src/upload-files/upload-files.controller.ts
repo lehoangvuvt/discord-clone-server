@@ -1,9 +1,8 @@
-import { Controller, Get, Post, Body, Res, Param } from '@nestjs/common'
+import { Controller, Get, Post, Body, Res } from '@nestjs/common'
 import { Response } from 'express'
 import { JwtService } from '@nestjs/jwt'
-import { createReadStream, statSync } from 'fs'
 import { UploadedFilesService } from './upload-files.service'
-import UploadFileDTO from 'src/dtos/upload-file.dto'
+import UploadFileDTO from 'src/dtos/upload-file.dto'  
 
 @Controller('files')
 export class UploadedFilesController {

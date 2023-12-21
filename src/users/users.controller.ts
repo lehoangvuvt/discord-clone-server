@@ -1,6 +1,5 @@
-import { Controller, Get, Post, Body, Res, UseGuards, Req, Param, UseInterceptors } from '@nestjs/common'
+import { Controller, Get, Post, Body, Res, UseGuards, Req, Param } from '@nestjs/common'
 import { Response } from 'express'
-import { JwtService } from '@nestjs/jwt'
 import { UsersService } from './users.service'
 import CreateUserDTO from '../dtos/create-user.dto'
 import { tokenConfig } from '../config/token.config'
@@ -11,7 +10,7 @@ import { TokenVerifyGuard } from 'src/auth/tokenVerify.guard'
 import { BAD_REQUEST, INTERNAL_SERVER, SUCCESS, UN_AUTHENTICATED, UN_PROCESSABLE } from 'src/consts/httpCodes'
 import AuthService from 'src/auth/auth.service'
 import { RelationshipTypeEnum } from 'src/schemas/user-relationship'
-import { CacheInterceptor, CacheKey, CacheTTL } from '@nestjs/cache-manager'
+import LoginDTO from 'src/dtos/login.dto'
 
 @Controller('users')
 export class UsersController {
@@ -37,12 +36,12 @@ export class UsersController {
   }
 
   @Post('login')
-  async login(@Body() userDTO: CreateUserDTO, @Res() res: Response) {
-    const response = await this.service.login(userDTO)
+  async login(@Body() loginDTO: LoginDTO, @Res() res: Response) {
+    const response = await this.service.login(loginDTO)
     if (response) {
       const refreshToken = await this.authSerivce.signToken('refresh_token', { _id: response._id })
-      res.cookie('refresh_token', refreshToken, tokenConfig.refreshToken.cookieOptions)
       const accessToken = await this.authSerivce.signToken('access_token', { _id: response._id })
+      res.cookie('refresh_token', refreshToken, tokenConfig.refreshToken.cookieOptions)
       res.cookie('access_token', accessToken, tokenConfig.accessToken.cookieOptions)
 
       return res.status(SUCCESS).json({
@@ -204,6 +203,26 @@ export class UsersController {
   async getActivities(@Req() req: any, @Res() res: Response) {
     const userId = req._id
     const response = await this.service.getActivities(userId)
+    return res.status(SUCCESS).json(response)
+  }
+
+  @Post('verify/:pendingRegisterUrl')
+  async verify(@Param() params: { pendingRegisterUrl: string }, @Body() body: { otpCode: number }, @Req() req: any, @Res() res: Response) {
+    const response = await this.service.verify(params.pendingRegisterUrl, body.otpCode)
+    if (response.status === 'Error') return res.status(UN_PROCESSABLE).json(response)
+    return res.status(SUCCESS).json(response)
+  }
+
+  @Get('pending-registers/:pendingRegisterUrl')
+  async getPendingRegisterInfoByURL(@Param() params: { pendingRegisterUrl: string }, @Res() res: Response) {
+    const response = await this.service.getPendingRegisterInfoByURL(params.pendingRegisterUrl)
+    return res.status(SUCCESS).json(response)
+  }
+
+  @Post('resend/:pendingRegisterUrl')
+  async resendOTPCode(@Param() params: { pendingRegisterUrl: string }, @Res() res: Response) {
+    const response = await this.service.resendCode(params.pendingRegisterUrl)
+    if (!response) return res.status(UN_PROCESSABLE).json({ error: 'Something error' })
     return res.status(SUCCESS).json(response)
   }
 }

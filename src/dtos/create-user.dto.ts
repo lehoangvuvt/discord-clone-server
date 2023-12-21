@@ -1,5 +1,5 @@
 import { Transform, TransformFnParams } from 'class-transformer'
-import { IsNotEmpty, MinLength, NotContains } from 'class-validator'
+import { IsEmail, IsNotEmpty, MinLength, NotContains } from 'class-validator'
 
 export default class CreateUserDTO {
   @IsNotEmpty()
@@ -10,6 +10,10 @@ export default class CreateUserDTO {
   @IsNotEmpty()
   @MinLength(5)
   password: string
+
+  @IsNotEmpty()
+  @IsEmail()
+  email: string
 
   name: string
 }

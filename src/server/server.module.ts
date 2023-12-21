@@ -13,6 +13,7 @@ import { AuthModule } from 'src/auth/auth.module'
 import { ServerInvitation, ServerInvitationSchema } from 'src/schemas/server-invitation'
 import { UserInvitation, UserInvitationSchema } from 'src/schemas/user-invitation'
 import { RedisService } from 'src/redis/redis.service'
+import RabbitMQService from 'src/rabbitmq/rabbitmq.service'
 
 @Module({
   imports: [
@@ -29,7 +30,7 @@ import { RedisService } from 'src/redis/redis.service'
     AuthModule,
   ],
   controllers: [ServersController],
-  providers: [ServersService, ChannelsService, RedisService],
+  providers: [ServersService, ChannelsService, RedisService, RabbitMQService],
   exports: [ServersService],
 })
 export class ServersModule {}
