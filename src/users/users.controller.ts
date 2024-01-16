@@ -56,7 +56,7 @@ export class UsersController {
   }
 
   @Get('refresh-token')
-  async getAccessTokenFromRefreshToken(@Req() req: any, @Res() res: Response) {
+  async loginByRefreshToken(@Req() req: any, @Res() res: Response) {
     if (req.cookies && req.cookies['refresh_token']) {
       const refresh_token = req.cookies['refresh_token']
       const validateToken = await this.authSerivce.validateToken('refresh_token', refresh_token)
