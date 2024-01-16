@@ -43,7 +43,6 @@ export class UsersController {
       const accessToken = await this.authSerivce.signToken('access_token', { _id: response._id })
       res.cookie('refresh_token', refreshToken, tokenConfig.refreshToken.cookieOptions)
       res.cookie('access_token', accessToken, tokenConfig.accessToken.cookieOptions)
-
       return res.status(SUCCESS).json({
         ...response,
         accessToken,
@@ -57,7 +56,7 @@ export class UsersController {
   }
 
   @Get('refresh-token')
-  async getAccessTokenFromAccessToken(@Req() req: any, @Res() res: Response) {
+  async getAccessTokenFromRefreshToken(@Req() req: any, @Res() res: Response) {
     if (req.cookies && req.cookies['refresh_token']) {
       const refresh_token = req.cookies['refresh_token']
       const validateToken = await this.authSerivce.validateToken('refresh_token', refresh_token)
