@@ -19,11 +19,10 @@ export class UsersController {
   @Post('register')
   async create(@Body() createUserDTO: CreateUserDTO, @Res() res: Response) {
     const response = await this.service.create(createUserDTO)
-    if(response) return res.json(401).json({})
     if (response) {
       return res.status(SUCCESS).json(response)
     } else {
-      return res.json({
+      return res.status(401).json({
         error: 'Username or email existed',
       })
     }
